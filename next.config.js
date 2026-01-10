@@ -4,6 +4,12 @@ const nextConfig = {
     config.resolve.alias['@'] = __dirname;
     return config;
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',

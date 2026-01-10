@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  username           String    @unique
+  passwordHash       String
+  role               String    @default("USER")
+  isLocked           Boolean   @default(false)
+  mustChangePassword Boolean   @default(false)
+  avatarUrl          String?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  lastFaucetAt       DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  wallet        Wallet?
+  transactions  Transaction[]
+  gameSessions  GameSession[]
+  auditLogs     AuditLog[]      @relation("ActorAuditLogs")
+  targetAudits  AuditLog[]      @relation("TargetAuditLogs")
+  provablyFairs ProvablyFair[]
+  sessions      Session[]
+
+  @@index([email])
+  @@index([username])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   BigInt   @default(10000)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id           String          @id @default(cuid())
+  userId       String
+  type         String
+  amount       BigInt
+  balanceAfter BigInt
+  game         String?
+  gameSessionId String?
+  metaJson     String?
+  createdAt    DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([game])
+  @@index([createdAt])
+}
+
+model GameSession {
+  id        String            @id @default(cuid())
+  userId    String
+  gameType  String
+  stateJson String
+  status    String @default("ACTIVE")
+  betAmount BigInt?
+  winAmount BigInt?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([gameType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  targetUserId String?
+  ip           String?
+  userAgent    String?
+  metaJson     String?
+  createdAt    DateTime @default(now())
+
+  actor  User? @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+  target User? @relation("TargetAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ProvablyFair {
+  id                 String    @id @default(cuid())
+  userId             String
+  gameType           String
+  serverSeed         String
+  serverSeedHash     String
+  serverSeedRevealed Boolean   @default(false)
+  clientSeed         String
+  nonce              Int       @default(0)
+  createdAt          DateTime  @default(now())
+  revealedAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([gameType])
+  @@index([serverSeedHash])
+}
+
+model GameConfig {
+  id          String   @id @default(cuid())
+  gameType    String @unique
+  isEnabled   Boolean  @default(true)
+  minBet      BigInt   @default(10)
+  maxBet      BigInt   @default(100000)
+  houseEdge   Float    @default(0.02)
+  configJson  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RateLimitEntry {
+  id         String   @id @default(cuid())
+  identifier String
+  action     String
+  count      Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt  DateTime
+
+  @@unique([identifier, action])
+  @@index([expiresAt])
+}

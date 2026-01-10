@@ -36,3 +36,6 @@ next-env.d.ts
 
 # Prisma
 prisma/migrations/*_migration_lock.toml
+
+# Local Netlify folder
+.netlify

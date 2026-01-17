@@ -1,7 +1,7 @@
 import prisma from "./prisma";
 
 type TransactionType = "BET" | "WIN" | "ADMIN_CREDIT" | "ADMIN_DEBIT" | "FAUCET" | "REFUND";
-type GameType = "ROULETTE" | "BLACKJACK" | "SLOTS" | "DICE" | "MINES" | "PLINKO" | "WHEEL" | "VIDEO_POKER" | "SWEET_BONANZA" | "GATES_OF_OLYMPUS" | "BOOK_OF_DEAD" | "BIG_BASS_BONANZA" | "WOLF_GOLD" | "STARBURST" | "GONZOS_QUEST_MEGAWAYS";
+type GameType = "ROULETTE" | "BLACKJACK" | "SLOTS" | "DICE" | "MINES" | "PLINKO" | "WHEEL" | "VIDEO_POKER" | "SWEET_BONANZA" | "GATES_OF_OLYMPUS" | "BOOK_OF_DEAD" | "BIG_BASS_BONANZA" | "WOLF_GOLD" | "STARBURST" | "GONZOS_QUEST_MEGAWAYS" | "COIN_STRIKE";
 
 interface TransactionResult {
   success: boolean;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 interface AnimatedGameCardProps {
   id: string;
@@ -9,6 +10,7 @@ interface AnimatedGameCardProps {
   isTop?: boolean;
   href: string;
   theme: "zeus" | "pharaoh" | "lightning" | "lucky" | "roulette" | "cards" | "fortune" | "stars" | "candy" | "dice" | "plinko" | "mines";
+  image?: string;
 }
 
 const themeStyles: Record<string, { gradient: string; icon: string; accent: string }> = {
@@ -74,37 +76,47 @@ const themeStyles: Record<string, { gradient: string; icon: string; accent: stri
   },
 };
 
-export function AnimatedGameCard({ id, name, provider, isTop = false, href, theme }: AnimatedGameCardProps) {
+export function AnimatedGameCard({ id, name, provider, isTop = false, href, theme, image }: AnimatedGameCardProps) {
   const style = themeStyles[theme] || themeStyles.zeus;
 
   return (
     <Link href={href} className="block group">
       <div className="relative rounded-xl overflow-hidden aspect-[3/4] transition-all duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-red-500/30">
-        {/* Animated Background */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient} animate-gradient`}>
-          {/* Sparkle Effects */}
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="sparkle sparkle-1" />
-            <div className="sparkle sparkle-2" />
-            <div className="sparkle sparkle-3" />
-            <div className="sparkle sparkle-4" />
-          </div>
-          
-          {/* Animated Shapes */}
-          <div className="absolute inset-0">
-            <div className={`absolute top-4 right-4 w-16 h-16 ${style.accent} rounded-full opacity-30 animate-pulse`} />
-            <div className={`absolute bottom-20 left-4 w-12 h-12 ${style.accent} rounded-full opacity-20 animate-bounce`} />
-            <div className={`absolute top-1/3 left-1/2 w-8 h-8 ${style.accent} rotate-45 opacity-25 animate-spin-slow`} />
-          </div>
+        {/* Custom Image or Animated Background */}
+        {image ? (
+          <Image
+            src={image}
+            alt={name}
+            fill
+            className="object-cover"
+            unoptimized
+          />
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${style.gradient} animate-gradient`}>
+            {/* Sparkle Effects */}
+            <div className="absolute inset-0 overflow-hidden">
+              <div className="sparkle sparkle-1" />
+              <div className="sparkle sparkle-2" />
+              <div className="sparkle sparkle-3" />
+              <div className="sparkle sparkle-4" />
+            </div>
+            
+            {/* Animated Shapes */}
+            <div className="absolute inset-0">
+              <div className={`absolute top-4 right-4 w-16 h-16 ${style.accent} rounded-full opacity-30 animate-pulse`} />
+              <div className={`absolute bottom-20 left-4 w-12 h-12 ${style.accent} rounded-full opacity-20 animate-bounce`} />
+              <div className={`absolute top-1/3 left-1/2 w-8 h-8 ${style.accent} rotate-45 opacity-25 animate-spin-slow`} />
+            </div>
 
-          {/* Central Icon */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-6xl animate-float drop-shadow-2xl">{style.icon}</span>
-          </div>
+            {/* Central Icon */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-6xl animate-float drop-shadow-2xl">{style.icon}</span>
+            </div>
 
-          {/* Shine Effect */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 animate-shine" />
-        </div>
+            {/* Shine Effect */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/20 to-white/0 animate-shine" />
+          </div>
+        )}
 
         {/* TOP Badge */}
         {isTop && (

@@ -16,10 +16,11 @@ const casinoGames: Array<{
   isTop: boolean;
   href: string;
   theme: GameTheme;
+  image?: string;
 }> = [
   { id: "gates-olympus", nameKey: "gatesOfOlympus", provider: "Pragmatic Play", isTop: true, href: "/games/slots", theme: "zeus" },
   { id: "book-of-ra", nameKey: "bookOfRa", provider: "Greentube", isTop: true, href: "/games/slots", theme: "pharaoh" },
-  { id: "coin-strike", nameKey: "coinStrike", provider: "Playson", isTop: true, href: "/games/slots", theme: "lightning" },
+  { id: "coin-strike", nameKey: "coinStrike", provider: "Playson", isTop: true, href: "/games/coin-strike", theme: "lightning", image: "/games/coin-strike.png" },
   { id: "lucky-lady", nameKey: "luckyLady", provider: "Greentube", isTop: true, href: "/games/slots", theme: "lucky" },
   { id: "roulette-live", nameKey: "liveRoulette", provider: "Evolution", isTop: true, href: "/games/roulette", theme: "roulette" },
   { id: "blackjack-vip", nameKey: "blackjackVip", provider: "Evolution", isTop: true, href: "/games/blackjack", theme: "cards" },
@@ -59,6 +60,7 @@ export default function HomePage() {
               isTop={game.isTop}
               href={game.href}
               theme={game.theme}
+              image={game.image}
             />
           ))}
         </div>

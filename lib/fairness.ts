@@ -6,7 +6,7 @@ import {
   generateProvablyFairNumber,
   floatToRange,
 } from "./rng";
-type GameType = "ROULETTE" | "BLACKJACK" | "SLOTS" | "DICE" | "MINES" | "PLINKO" | "WHEEL" | "VIDEO_POKER" | "SWEET_BONANZA" | "GATES_OF_OLYMPUS" | "BOOK_OF_DEAD" | "BIG_BASS_BONANZA" | "WOLF_GOLD" | "GONZOS_QUEST_MEGAWAYS" | "STARBURST";
+type GameType = "ROULETTE" | "BLACKJACK" | "SLOTS" | "DICE" | "MINES" | "PLINKO" | "WHEEL" | "VIDEO_POKER" | "SWEET_BONANZA" | "GATES_OF_OLYMPUS" | "BOOK_OF_DEAD" | "BIG_BASS_BONANZA" | "WOLF_GOLD" | "GONZOS_QUEST_MEGAWAYS" | "STARBURST" | "COIN_STRIKE";
 
 export interface FairnessData {
   id: string;

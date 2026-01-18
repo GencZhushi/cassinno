@@ -16,13 +16,15 @@ import {
   Plus,
   RotateCcw,
   Zap,
-  FastForward
+  FastForward,
+  RefreshCw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SlotSymbol } from "./symbols";
 
 const REELS = 3;
 const ROWS = 3;
+const SPIN_SYMBOLS_COUNT = 20; // Number of symbols in spinning reel strip
 
 const SYMBOL_COLORS: Record<string, string> = {
   "🍒": "from-red-500 to-red-700",
@@ -127,9 +129,9 @@ export default function CoinStrikePage() {
     setWinningPositions(new Set());
     setCoinData([]);
 
-    const spinDuration = turboMode ? 300 : 600;
+    const spinDuration = turboMode ? 400 : 800;
 
-    // Spinning animation
+    // Spinning animation - rapid symbol changes for slot machine effect
     const animationInterval = setInterval(() => {
       setReels(
         Array(REELS).fill(null).map(() => 
@@ -138,7 +140,7 @@ export default function CoinStrikePage() {
           )
         )
       );
-    }, 60);
+    }, 80);
 
     try {
       const res = await fetch("/api/games/coin-strike/spin", {
@@ -287,12 +289,26 @@ export default function CoinStrikePage() {
     return coin ? coin.value : null;
   };
 
+  // Generate spinning reel strip for animation
+  const generateSpinStrip = useCallback(() => {
+    return Array(SPIN_SYMBOLS_COUNT).fill(null).map(() => 
+      ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]
+    );
+  }, []);
+
+  const [spinStrips, setSpinStrips] = useState<string[][]>(() => 
+    Array(REELS).fill(null).map(() => generateSpinStrip())
+  );
+  const [reelOffsets, setReelOffsets] = useState<number[]>([0, 0, 0]);
+  const [reelStopped, setReelStopped] = useState<boolean[]>([true, true, true]);
+
   return (
-    <main className="min-h-screen pb-8 relative overflow-hidden bg-gradient-to-b from-amber-950 via-orange-950 to-black">
+    <main className="h-screen max-h-screen overflow-hidden relative flex flex-col bg-gradient-to-b from-blue-950 via-indigo-950 to-slate-950">
       {/* Lightning Background Effect */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-1 h-64 bg-gradient-to-b from-blue-400/50 to-transparent blur-sm animate-pulse" />
-        <div className="absolute top-0 right-1/3 w-1 h-48 bg-gradient-to-b from-yellow-400/50 to-transparent blur-sm animate-pulse" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute top-1/4 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+        <div className="absolute top-1/2 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent" />
       </div>
 
       {/* Big Win Overlay */}
@@ -326,7 +342,7 @@ export default function CoinStrikePage() {
         </div>
       )}
 
-      <div className="container mx-auto px-3 py-3 max-w-4xl relative z-10">
+      <div className="container mx-auto px-3 py-2 max-w-5xl relative z-10 flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -368,211 +384,218 @@ export default function CoinStrikePage() {
           </div>
         </div>
 
-        {/* Jackpot Display */}
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          <Card className="bg-gradient-to-br from-green-600/60 to-green-800/60 border-green-500/50">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-green-200 uppercase font-bold tracking-wider">GRAND</p>
-              <p className="text-lg font-black text-green-300">{jackpots.grand}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-red-600/60 to-red-800/60 border-red-500/50">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-red-200 uppercase font-bold tracking-wider">MAJOR</p>
-              <p className="text-lg font-black text-red-300">{jackpots.major}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-blue-600/60 to-blue-800/60 border-blue-500/50">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-blue-200 uppercase font-bold tracking-wider">MINOR</p>
-              <p className="text-lg font-black text-blue-300">{jackpots.minor}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-purple-600/60 to-purple-800/60 border-purple-500/50">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-purple-200 uppercase font-bold tracking-wider">MINI</p>
-              <p className="text-lg font-black text-purple-300">{jackpots.mini}</p>
-            </CardContent>
-          </Card>
+        {/* Jackpot Display - Matching reference image style */}
+        <div className="flex justify-center gap-4 mb-2">
+          <div className="flex flex-col items-center">
+            <div className="bg-gradient-to-b from-red-500 to-red-700 px-4 py-1 rounded-t-lg border-2 border-red-400 shadow-lg">
+              <p className="text-xs font-bold text-white uppercase tracking-wider">GRAND</p>
+            </div>
+            <div className="bg-gradient-to-b from-red-600 to-red-800 px-6 py-2 rounded-b-lg border-2 border-t-0 border-red-400">
+              <p className="text-2xl font-black text-yellow-300 drop-shadow-lg">{jackpots.grand}</p>
+            </div>
+            <p className="text-[10px] text-yellow-400 mt-1 font-bold">MINOR <span className="text-yellow-300">{jackpots.minor}</span></p>
+          </div>
+          
+          {/* Center Logo */}
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 flex items-center justify-center shadow-lg shadow-yellow-500/50 border-4 border-yellow-300">
+              <Zap className="w-8 h-8 text-yellow-900" />
+            </div>
+            <h1 className="text-xl font-black mt-1">
+              <span className="text-yellow-400">COIN</span>
+              <span className="text-red-500">STR</span>
+              <span className="text-yellow-400">IKE</span>
+            </h1>
+          </div>
+          
+          <div className="flex flex-col items-center">
+            <div className="bg-gradient-to-b from-green-500 to-green-700 px-4 py-1 rounded-t-lg border-2 border-green-400 shadow-lg">
+              <p className="text-xs font-bold text-white uppercase tracking-wider">MAJOR</p>
+            </div>
+            <div className="bg-gradient-to-b from-green-600 to-green-800 px-6 py-2 rounded-b-lg border-2 border-t-0 border-green-400">
+              <p className="text-2xl font-black text-yellow-300 drop-shadow-lg">{jackpots.major}</p>
+            </div>
+            <p className="text-[10px] text-yellow-400 mt-1 font-bold">MINI <span className="text-yellow-300">{jackpots.mini}</span></p>
+          </div>
         </div>
 
-        {/* Game Machine Frame */}
-        <div className="relative rounded-2xl p-1 mb-3 bg-gradient-to-b from-amber-500 via-yellow-600 to-amber-700 shadow-2xl shadow-amber-600/30">
-          {/* Title Banner */}
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 px-6 py-1 rounded-full border-2 border-yellow-400 shadow-lg">
-              <span className="text-lg font-black text-amber-900 tracking-wider flex items-center gap-2">
-                <Zap className="w-4 h-4" />
-                COIN STRIKE
-                <Zap className="w-4 h-4" />
-              </span>
-            </div>
-          </div>
+        {/* Game Machine Frame - New Layout with Spin Button on Right */}
+        <div className="flex gap-4 mb-2 flex-1 min-h-0">
+          {/* Main Slot Machine */}
+          <div className="flex-1 relative flex flex-col">
+            {/* Chrome/Silver Frame */}
+            <div className="rounded-xl p-1 bg-gradient-to-b from-slate-300 via-slate-400 to-slate-500 shadow-2xl h-full flex flex-col">
+              <div className="rounded-lg p-1 bg-gradient-to-b from-slate-500 via-slate-600 to-slate-700 flex-1 flex flex-col">
+                <div className="rounded-md overflow-hidden bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900 flex-1 flex flex-col">
+                  {/* 5 LINES indicators on sides */}
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+                    <div className="text-[8px] text-white/60 font-bold rotate-[-90deg] whitespace-nowrap">5 LINES</div>
+                  </div>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                    <div className="text-[8px] text-white/60 font-bold rotate-90 whitespace-nowrap">5 LINES</div>
+                  </div>
 
-          <div className="relative rounded-xl overflow-hidden bg-gradient-to-b from-blue-950 via-blue-900 to-blue-950 pt-4">
-            {/* Reels Container */}
-            <div className="p-4">
-              <div className="bg-black/50 rounded-xl p-4 border-4 border-amber-600/60 shadow-inner">
-                {/* 3x3 Grid */}
-                <div className="grid grid-cols-3 gap-2">
-                  {reels.map((reel, reelIndex) => (
-                    reel.map((symbol, rowIndex) => {
-                      const isWinning = isPositionWinning(reelIndex, rowIndex);
-                      const coinValue = getCoinValue(reelIndex, rowIndex);
-                      const isCoin = symbol === "🪙";
-                      const symbolColor = SYMBOL_COLORS[symbol] || "from-gray-400 to-gray-600";
-                      
-                      return (
-                        <div
-                          key={`${reelIndex}-${rowIndex}`}
-                          className={`
-                            relative aspect-square rounded-lg flex flex-col items-center justify-center
-                            transition-all duration-300 overflow-hidden
-                            ${isWinning 
-                              ? `bg-gradient-to-br ${symbolColor} ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/50` 
-                              : "bg-gradient-to-br from-slate-700/80 to-slate-800/80"
-                            }
-                          `}
-                        >
-                          <div 
-                            className={`absolute inset-0 flex items-center justify-center p-2 transition-all duration-300 ${isWinning ? 'scale-110 animate-pulse' : ''}`}
-                            style={{
-                              filter: isSpinning ? "blur(3px)" : "none",
-                            }}
-                          >
-                            <SlotSymbol symbol={symbol} size={0} className="w-full h-full drop-shadow-lg" />
-                          </div>
+                  {/* Reels Container - Fixed 3x3 Grid */}
+                  <div className="p-2 flex-1 flex items-stretch justify-stretch">
+                    <div className="grid grid-cols-3 grid-rows-3 gap-2 w-full h-full max-w-none max-h-none">
+                      {/* Render symbols row by row */}
+                      {[0, 1, 2].map((rowIndex) => (
+                        reels.map((reel, reelIndex) => {
+                          const symbol = reel[rowIndex];
+                          const isWinning = isPositionWinning(reelIndex, rowIndex);
+                          const coinValue = getCoinValue(reelIndex, rowIndex);
+                          const isCoin = symbol === "🪙";
                           
-                          {/* Coin value display */}
-                          {isCoin && coinValue && (
-                            <div className="absolute bottom-1 left-0 right-0 text-center">
-                              <span className="text-xs sm:text-sm font-bold text-yellow-300 bg-black/60 px-2 py-0.5 rounded">
-                                {coinValue.toFixed(2)}
-                              </span>
+                          return (
+                            <div
+                              key={`${reelIndex}-${rowIndex}`}
+                              className={`
+                                relative rounded-lg overflow-hidden
+                                bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700
+                                ${isWinning ? 'ring-3 ring-yellow-400 shadow-lg shadow-yellow-400/50' : ''}
+                              `}
+                            >
+                              {/* Symbol container - fills the cell */}
+                              <div 
+                                className={`
+                                  absolute inset-0 flex items-center justify-center
+                                  ${isWinning ? 'scale-105' : ''}
+                                  transition-transform duration-100
+                                `}
+                              >
+                                <SlotSymbol 
+                                  symbol={symbol} 
+                                  size={0} 
+                                  className="w-full h-full drop-shadow-lg scale-110" 
+                                />
+                              </div>
+                              
+                              {/* Coin value display */}
+                              {isCoin && coinValue && !isSpinning && (
+                                <div className="absolute bottom-1 left-0 right-0 text-center z-10">
+                                  <span className="text-[10px] font-bold text-yellow-300 bg-black/70 px-1.5 py-0.5 rounded">
+                                    {coinValue.toFixed(2)}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Win glow */}
+                              {isWinning && (
+                                <div className="absolute inset-0 bg-yellow-400/30 animate-pulse rounded-lg" />
+                              )}
                             </div>
-                          )}
-                          
-                          {/* Win glow effect */}
-                          {isWinning && (
-                            <div className="absolute inset-0 bg-yellow-400/20 animate-pulse rounded-lg" />
-                          )}
-                        </div>
-                      );
-                    })
-                  )).flat()}
-                </div>
-              </div>
-
-              {/* Win Display */}
-              <div className="h-14 flex items-center justify-center mt-3">
-                {lastWin > 0 ? (
-                  <div className="flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 shadow-lg shadow-amber-500/40">
-                    <Trophy className="w-5 h-5 text-yellow-900" />
-                    <span className="text-2xl font-black text-yellow-900">+{lastWin.toLocaleString()}</span>
-                    <Trophy className="w-5 h-5 text-yellow-900" />
+                          );
+                        })
+                      )).flat()}
+                    </div>
                   </div>
-                ) : isSpinning ? (
-                  <div className="flex items-center gap-2 text-amber-400">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm font-semibold">Spinning...</span>
-                  </div>
-                ) : (
-                  <p className="text-amber-300/80 text-sm">6+ 🪙 Coins trigger Hold & Win!</p>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 border-t border-amber-600/30">
-              {/* Stats Row */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center">
-                  <p className="text-[10px] text-amber-300/70 uppercase">Credit</p>
-                  <p className="text-lg font-bold text-white">{balance.toLocaleString()}</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-amber-300/70 uppercase">Last Win</p>
-                  <p className="text-lg font-bold text-yellow-400">{lastWin.toFixed(2)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-amber-300/70 uppercase">Bet</p>
-                  <p className="text-lg font-bold text-white">{betAmount.toFixed(2)}</p>
-                </div>
-              </div>
-
-              {/* Controls Row */}
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                {/* Bet Controls */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => adjustBet(-0.10)}
-                    disabled={isSpinning || betAmount <= 0.10}
-                    className="border-amber-600/50 hover:bg-amber-600/20 text-white h-10 w-10"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <div className="text-center min-w-[60px]">
-                    <p className="text-lg font-bold text-yellow-400">{betAmount.toFixed(2)}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => adjustBet(0.10)}
-                    disabled={isSpinning || betAmount >= 100}
-                    className="border-amber-600/50 hover:bg-amber-600/20 text-white h-10 w-10"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Auto Spin */}
-                <Button
-                  onClick={toggleAutoSpin}
-                  variant={autoSpin ? "destructive" : "outline"}
-                  size="icon"
-                  className={`h-10 w-10 ${autoSpin ? "" : "border-amber-600/50 hover:bg-amber-600/20 text-white"}`}
-                  disabled={balance < betAmount * 100 || holdAndWinActive}
-                >
-                  <Zap className={`w-5 h-5 ${autoSpin ? "animate-pulse" : ""}`} />
-                </Button>
-
-                {/* Spin Button */}
-                <Button
-                  onClick={spin}
-                  disabled={isSpinning || balance < betAmount * 100 || holdAndWinActive}
-                  onMouseDown={() => { holdSpinRef.current = true; }}
-                  onMouseUp={() => { holdSpinRef.current = false; }}
-                  onMouseLeave={() => { holdSpinRef.current = false; }}
-                  className="relative h-16 w-16 rounded-full text-xl font-black bg-gradient-to-b from-orange-500 via-orange-600 to-red-700 hover:from-orange-400 hover:via-orange-500 hover:to-red-600 text-white shadow-lg shadow-orange-600/50 disabled:opacity-50 overflow-hidden border-4 border-orange-400"
-                >
-                  <span className="relative z-10">
-                    {isSpinning ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <RotateCcw className="w-6 h-6" />
-                    )}
-                  </span>
-                </Button>
-
-                {/* Turbo Mode */}
-                <Button
-                  onClick={() => setTurboMode(!turboMode)}
-                  variant={turboMode ? "default" : "outline"}
-                  size="icon"
-                  className={`h-10 w-10 ${turboMode ? "bg-amber-600 hover:bg-amber-700" : "border-amber-600/50 hover:bg-amber-600/20 text-white"}`}
-                >
-                  <FastForward className="w-5 h-5" />
-                </Button>
               </div>
             </div>
           </div>
+
+          {/* Right Side Controls */}
+          <div className="flex flex-col items-center justify-center gap-3 w-24">
+            {/* Info Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPaytable(true)}
+              className="w-12 h-12 rounded-full border-2 border-white/30 hover:bg-white/10 text-white"
+            >
+              <Info className="w-5 h-5" />
+            </Button>
+
+            {/* Auto Spin */}
+            <Button
+              onClick={toggleAutoSpin}
+              size="icon"
+              className={`w-12 h-12 rounded-full border-2 ${autoSpin ? "bg-red-600 border-red-400" : "border-white/30 hover:bg-white/10"} text-white`}
+              disabled={balance < betAmount * 100 || holdAndWinActive}
+            >
+              <Zap className={`w-5 h-5 ${autoSpin ? "animate-pulse" : ""}`} />
+            </Button>
+
+            {/* Main Spin Button - Large Orange */}
+            <div className="relative">
+              <Button
+                onClick={spin}
+                disabled={isSpinning || balance < betAmount * 100 || holdAndWinActive}
+                onMouseDown={() => { holdSpinRef.current = true; }}
+                onMouseUp={() => { holdSpinRef.current = false; }}
+                onMouseLeave={() => { holdSpinRef.current = false; }}
+                className="relative h-24 w-24 rounded-full text-xl font-black bg-gradient-to-b from-orange-400 via-orange-500 to-orange-600 hover:from-orange-300 hover:via-orange-400 hover:to-orange-500 text-white shadow-xl shadow-orange-500/50 disabled:opacity-50 overflow-hidden border-4 border-orange-300"
+              >
+                <div className="absolute inset-2 rounded-full border-2 border-orange-200/30" />
+                <span className="relative z-10">
+                  {isSpinning ? (
+                    <Loader2 className="w-10 h-10 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-10 h-10" />
+                  )}
+                </span>
+              </Button>
+              {/* Hold for Turbo text */}
+              {!isSpinning && (
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  <span className="text-[8px] text-orange-300 font-bold uppercase bg-orange-900/80 px-2 py-0.5 rounded">
+                    HOLD FOR TURBO
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Fast Forward / Turbo */}
+            <Button
+              onClick={() => setTurboMode(!turboMode)}
+              size="icon"
+              className={`w-12 h-12 rounded-full border-2 ${turboMode ? "bg-amber-600 border-amber-400" : "border-white/30 hover:bg-white/10"} text-white`}
+            >
+              <FastForward className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="text-center text-xs text-amber-300/70">
-          <span>RTP: 96.5% • 6+ Coins = Hold & Win • Max Win: 1000x (GRAND)</span>
+        {/* Bottom Stats Bar - Compact */}
+        <div className="bg-gradient-to-r from-slate-900/90 via-slate-800/90 to-slate-900/90 rounded-lg p-3 backdrop-blur-sm border border-slate-700/50 flex-shrink-0">
+          {/* Stats and Controls in one row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-center flex-1">
+              <p className="text-[9px] text-slate-400 uppercase tracking-wider">CRÉDIT</p>
+              <p className="text-lg font-bold text-white">{balance.toLocaleString()}</p>
+            </div>
+            
+            {/* Bet Controls */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => adjustBet(-0.10)}
+                disabled={isSpinning || betAmount <= 0.10}
+                className="border-slate-600 hover:bg-slate-700 text-white h-8 w-8 rounded-full"
+              >
+                <Minus className="w-3 h-3" />
+              </Button>
+              <div className="text-center min-w-[70px] px-3 py-1 bg-slate-800 rounded-lg border border-slate-600">
+                <p className="text-[9px] text-slate-400 uppercase">MISE</p>
+                <p className="text-base font-bold text-yellow-400">{betAmount.toFixed(2)}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => adjustBet(0.10)}
+                disabled={isSpinning || betAmount >= 100}
+                className="border-slate-600 hover:bg-slate-700 text-white h-8 w-8 rounded-full"
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
+            
+            <div className="text-center flex-1">
+              <p className="text-[9px] text-slate-400 uppercase tracking-wider">DERNIERS GAINS</p>
+              <p className="text-lg font-bold text-yellow-400">{lastWin.toFixed(2)}</p>
+            </div>
+          </div>
         </div>
       </div>
 

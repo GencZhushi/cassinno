@@ -506,3 +506,59 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Coin Strike Slot Machine Spinning Animations */
+@keyframes spin-reel-0 {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-93px); }
+}
+
+@keyframes spin-reel-1 {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-93px); }
+}
+
+@keyframes spin-reel-2 {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-93px); }
+}
+
+@keyframes reel-spin-continuous {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-279px); }
+}
+
+.coin-strike-reel {
+  overflow: hidden;
+  position: relative;
+}
+
+.coin-strike-reel-strip {
+  display: flex;
+  flex-direction: column;
+}
+
+.coin-strike-reel-strip.spinning {
+  animation: reel-spin-continuous 0.15s linear infinite;
+}
+
+.coin-strike-reel-strip.stopping {
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.coin-strike-symbol-cell {
+  transition: all 0.3s ease;
+}
+
+.coin-strike-symbol-cell.winning {
+  animation: winPulse 0.5s ease-in-out infinite;
+}
+
+/* Blue gradient background for slot symbols */
+.coin-strike-symbol-bg {
+  background: linear-gradient(180deg, 
+    rgba(37, 99, 235, 0.9) 0%, 
+    rgba(29, 78, 216, 0.95) 50%, 
+    rgba(30, 64, 175, 0.9) 100%
+  );
+}

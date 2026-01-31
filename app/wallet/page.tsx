@@ -128,7 +128,7 @@ export default function WalletPage() {
     <main className="min-h-screen pb-20">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/lobby">
+          <Link href="/">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="w-5 h-5" />
             </Button>
@@ -159,7 +159,7 @@ export default function WalletPage() {
                 )}
                 Claim Free Tokens
               </Button>
-              <Link href="/lobby">
+              <Link href="/">
                 <Button variant="outline">Play Games</Button>
               </Link>
             </div>

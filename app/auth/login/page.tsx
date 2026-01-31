@@ -45,7 +45,7 @@ export default function LoginPage() {
       if (data.mustChangePassword) {
         router.push("/profile?changePassword=true");
       } else {
-        router.push("/lobby");
+        router.push("/");
       }
       router.refresh();
     } catch (error) {

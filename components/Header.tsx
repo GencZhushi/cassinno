@@ -69,7 +69,7 @@ export function Header() {
       {menuOpen && (
         <div className="absolute top-full left-0 right-0 bg-black/98 border-b border-gray-800 py-4 px-4">
           <nav className="flex flex-col gap-3">
-            <Link href="/lobby" className="text-white hover:text-red-500 py-2">{t("home")}</Link>
+            <Link href="/" className="text-white hover:text-red-500 py-2">{t("home")}</Link>
             <Link href="/games/slots" className="text-white hover:text-red-500 py-2">{t("slots")}</Link>
             <Link href="/games" className="text-white hover:text-red-500 py-2">{t("allGames")}</Link>
             <Link href="/profile" className="text-white hover:text-red-500 py-2">{t("myProfile")}</Link>

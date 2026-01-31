@@ -54,7 +54,7 @@ export default function RegisterPage() {
         variant: "success",
       });
 
-      router.push("/lobby");
+      router.push("/");
       router.refresh();
     } catch (error) {
       toast({

@@ -116,7 +116,7 @@ export default function ResponsibleGamingPage() {
         </Card>
 
         <div className="text-center">
-          <Link href="/lobby">
+          <Link href="/">
             <Button variant="casino" size="lg">
               Back to Games
             </Button>

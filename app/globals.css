@@ -654,14 +654,14 @@
   100% { transform: translateY(0%); }
 }
 
-/* Alternative: symbols moving upward (traditional slot machine style) */
+/* Symbols moving from top to bottom (up-down direction) */
 @keyframes reel-spin-down {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-33.333%); }
+  0% { transform: translateY(-33.333%); }
+  100% { transform: translateY(0); }
 }
 
 .reel-spinning {
-  animation: reel-spin-down 0.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: reel-spin-down 0.35s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
 }
 
 .reel-stopped {

@@ -24,18 +24,8 @@ import { SlotSymbol } from "./symbols";
 
 const REELS = 3;
 const ROWS = 3;
-const SPIN_SYMBOLS_COUNT = 20; // Number of symbols in spinning reel strip
-
-const SYMBOL_COLORS: Record<string, string> = {
-  "🍒": "from-red-500 to-red-700",
-  "🍊": "from-orange-400 to-orange-600",
-  "🍇": "from-purple-500 to-purple-700",
-  "🔔": "from-yellow-500 to-amber-600",
-  "📊": "from-amber-600 to-amber-800",
-  "7️⃣": "from-red-600 to-red-800",
-  "🪙": "from-yellow-400 to-amber-600",
-  "⚡": "from-blue-400 to-blue-600",
-};
+const REEL_STRIP_LENGTH = 30; // Number of symbols in each reel strip for spinning
+const SYMBOL_HEIGHT = 100; // Height of each symbol in pixels (will be adjusted by CSS)
 
 const SYMBOL_NAMES: Record<string, string> = {
   "🍒": "Cherries",
@@ -49,6 +39,22 @@ const SYMBOL_NAMES: Record<string, string> = {
 };
 
 const ALL_SYMBOLS = ["🍒", "🍊", "🍇", "🔔", "📊", "7️⃣", "🪙", "⚡"];
+
+// Generate a random reel strip with symbols
+const generateReelStrip = (finalSymbols?: string[]): string[] => {
+  const strip: string[] = [];
+  for (let i = 0; i < REEL_STRIP_LENGTH; i++) {
+    strip.push(ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]);
+  }
+  // If final symbols provided, place them at the end positions that will be visible
+  if (finalSymbols) {
+    // The visible window shows 3 symbols, place finals at positions that will show after spin
+    strip[REEL_STRIP_LENGTH - 3] = finalSymbols[0];
+    strip[REEL_STRIP_LENGTH - 2] = finalSymbols[1];
+    strip[REEL_STRIP_LENGTH - 1] = finalSymbols[2];
+  }
+  return strip;
+};
 
 interface CoinData {
   position: [number, number];
@@ -79,8 +85,20 @@ export default function CoinStrikePage() {
   const [jackpotWon, setJackpotWon] = useState<string | null>(null);
   const [showBigWin, setShowBigWin] = useState(false);
   const [bigWinAmount, setBigWinAmount] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [winLines, setWinLines] = useState<string[]>([]); // 'row-0', 'row-1', 'row-2', 'col-0', 'col-1', 'col-2', 'diag-1', 'diag-2'
   const autoSpinRef = useRef(false);
   const holdSpinRef = useRef(false);
+  
+  // Reel spinning state
+  const [reelStrips, setReelStrips] = useState<string[][]>(() => 
+    Array(REELS).fill(null).map(() => generateReelStrip())
+  );
+  const [reelPositions, setReelPositions] = useState<number[]>([0, 0, 0]);
+  const [reelSpinning, setReelSpinning] = useState<boolean[]>([false, false, false]);
+  const [reelBlur, setReelBlur] = useState<boolean[]>([false, false, false]);
+  const spinAnimationRef = useRef<number | null>(null);
+  const reelStopTimeouts = useRef<NodeJS.Timeout[]>([]);
 
   // Jackpot display values (multiplied by bet)
   const jackpots = {
@@ -116,6 +134,72 @@ export default function CoinStrikePage() {
     }, 3000);
   }, []);
 
+  // Start the spinning animation for all reels
+  const startReelSpin = useCallback((finalReels: string[][]) => {
+    // Clear any existing timeouts
+    reelStopTimeouts.current.forEach(t => clearTimeout(t));
+    reelStopTimeouts.current = [];
+    
+    // Generate new reel strips with final symbols at the end
+    const newStrips = finalReels.map((reelSymbols) => generateReelStrip(reelSymbols));
+    setReelStrips(newStrips);
+    
+    // Reset positions and start all reels spinning
+    setReelPositions([0, 0, 0]);
+    setReelSpinning([true, true, true]);
+    setReelBlur([true, true, true]);
+    
+    // Base timing for spin
+    const baseSpinTime = turboMode ? 600 : 1200;
+    const reelDelay = turboMode ? 150 : 300; // Delay between each reel stopping
+    
+    // Schedule each reel to stop with staggered timing
+    return new Promise<void>((resolve) => {
+      for (let i = 0; i < REELS; i++) {
+        const stopTime = baseSpinTime + (i * reelDelay);
+        
+        const timeout = setTimeout(() => {
+          // Stop this reel - remove blur first for slowdown effect
+          setReelBlur(prev => {
+            const newBlur = [...prev];
+            newBlur[i] = false;
+            return newBlur;
+          });
+          
+          // Then stop spinning after a brief slowdown
+          setTimeout(() => {
+            setReelSpinning(prev => {
+              const newSpinning = [...prev];
+              newSpinning[i] = false;
+              return newSpinning;
+            });
+            
+            // Set final position for this reel
+            setReelPositions(prev => {
+              const newPositions = [...prev];
+              newPositions[i] = REEL_STRIP_LENGTH - ROWS; // Position to show last 3 symbols
+              return newPositions;
+            });
+            
+            // Update the visible reels state for this column
+            setReels(prev => {
+              const newReels = [...prev];
+              newReels[i] = finalReels[i];
+              return newReels;
+            });
+            
+            // If this is the last reel, resolve
+            if (i === REELS - 1) {
+              setTimeout(resolve, 100);
+            }
+          }, turboMode ? 100 : 200);
+        }, stopTime);
+        
+        reelStopTimeouts.current.push(timeout);
+      }
+    });
+  }, [turboMode]);
+
   const spin = useCallback(async () => {
     const totalBet = Math.round(betAmount * 100);
     if (totalBet > balance) {
@@ -128,21 +212,11 @@ export default function CoinStrikePage() {
     setLastWin(0);
     setWinningPositions(new Set());
     setCoinData([]);
-
-    const spinDuration = turboMode ? 400 : 800;
-
-    // Spinning animation - rapid symbol changes for slot machine effect
-    const animationInterval = setInterval(() => {
-      setReels(
-        Array(REELS).fill(null).map(() => 
-          Array(ROWS).fill(null).map(() => 
-            ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]
-          )
-        )
-      );
-    }, 80);
+    setShowConfetti(false);
+    setWinLines([]);
 
     try {
+      // Fetch result from server first
       const res = await fetch("/api/games/coin-strike/spin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -150,22 +224,43 @@ export default function CoinStrikePage() {
       });
 
       const data = await res.json();
-
-      await new Promise(resolve => setTimeout(resolve, spinDuration));
-      clearInterval(animationInterval);
-
+      
       if (!res.ok) throw new Error(data.error);
 
-      // Set final reels
-      setReels(data.reels);
+      // Start the realistic spinning animation with the final results
+      await startReelSpin(data.reels);
 
-      // Highlight winning positions
+      // Highlight winning positions and detect win lines
       if (data.winningPositions && data.winningPositions.length > 0) {
         const positions = new Set<string>();
+        const detectedLines: string[] = [];
+        
         data.winningPositions.forEach(([reel, row]: [number, number]) => {
           positions.add(`${reel}-${row}`);
         });
         setWinningPositions(positions);
+        
+        // Detect which lines won based on positions
+        for (let row = 0; row < 3; row++) {
+          if (positions.has(`0-${row}`) && positions.has(`1-${row}`) && positions.has(`2-${row}`)) {
+            detectedLines.push(`row-${row}`);
+          }
+        }
+        for (let col = 0; col < 3; col++) {
+          if (positions.has(`${col}-0`) && positions.has(`${col}-1`) && positions.has(`${col}-2`)) {
+            detectedLines.push(`col-${col}`);
+          }
+        }
+        if (positions.has('0-0') && positions.has('1-1') && positions.has('2-2')) {
+          detectedLines.push('diag-1');
+        }
+        if (positions.has('0-2') && positions.has('1-1') && positions.has('2-0')) {
+          detectedLines.push('diag-2');
+        }
+        
+        setWinLines(detectedLines);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
       }
 
       // Handle coin data
@@ -185,7 +280,6 @@ export default function CoinStrikePage() {
           variant: "success" 
         });
         
-        // Auto-trigger Hold & Win feature
         setTimeout(async () => {
           const holdRes = await fetch("/api/games/coin-strike/spin", {
             method: "POST",
@@ -207,7 +301,6 @@ export default function CoinStrikePage() {
             setBalance(parseInt(holdData.newBalance));
             setTotalWon(prev => prev + holdWin);
             
-            // Update coin data with final positions
             if (holdData.coinPositions) {
               const finalCoins: CoinData[] = holdData.coinPositions.map((pos: [number, number], idx: number) => ({
                 position: pos,
@@ -258,13 +351,12 @@ export default function CoinStrikePage() {
       }
 
     } catch (error) {
-      clearInterval(animationInterval);
       toast({ title: error instanceof Error ? error.message : "Spin failed", variant: "destructive" });
       setAutoSpin(false);
     } finally {
       setIsSpinning(false);
     }
-  }, [betAmount, balance, toast, turboMode, showBigWinAnimation]);
+  }, [betAmount, balance, toast, turboMode, showBigWinAnimation, startReelSpin]);
 
   const adjustBet = (delta: number) => {
     const newBet = Math.max(0.10, Math.min(100, betAmount + delta));
@@ -289,18 +381,6 @@ export default function CoinStrikePage() {
     return coin ? coin.value : null;
   };
 
-  // Generate spinning reel strip for animation
-  const generateSpinStrip = useCallback(() => {
-    return Array(SPIN_SYMBOLS_COUNT).fill(null).map(() => 
-      ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]
-    );
-  }, []);
-
-  const [spinStrips, setSpinStrips] = useState<string[][]>(() => 
-    Array(REELS).fill(null).map(() => generateSpinStrip())
-  );
-  const [reelOffsets, setReelOffsets] = useState<number[]>([0, 0, 0]);
-  const [reelStopped, setReelStopped] = useState<boolean[]>([true, true, true]);
 
   return (
     <main className="h-screen max-h-screen overflow-hidden relative flex flex-col bg-gradient-to-b from-blue-950 via-indigo-950 to-slate-950">
@@ -342,11 +422,44 @@ export default function CoinStrikePage() {
         </div>
       )}
 
+      {/* Confetti Overlay */}
+      {showConfetti && (
+        <div className="fixed inset-0 z-30 pointer-events-none overflow-hidden">
+          {[...Array(50)].map((_, i) => (
+            <div
+              key={i}
+              className="confetti-piece rounded-sm"
+              style={{
+                left: `${Math.random() * 100}%`,
+                backgroundColor: ['#fbbf24', '#f59e0b', '#ef4444', '#22c55e', '#3b82f6', '#a855f7'][Math.floor(Math.random() * 6)],
+                animationDelay: `${Math.random() * 2}s`,
+                animationDuration: `${2 + Math.random() * 2}s`,
+              }}
+            />
+          ))}
+          {/* Sparkles */}
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={`sparkle-${i}`}
+              className="absolute text-2xl"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animation: `sparkle ${0.5 + Math.random() * 1}s ease-in-out infinite`,
+                animationDelay: `${Math.random() * 2}s`,
+              }}
+            >
+              ✨
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="container mx-auto px-3 py-2 max-w-5xl relative z-10 flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Link href="/lobby">
+            <Link href="/">
               <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white h-8 w-8">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
@@ -435,59 +548,156 @@ export default function CoinStrikePage() {
                     <div className="text-[8px] text-white/60 font-bold rotate-90 whitespace-nowrap">5 LINES</div>
                   </div>
 
-                  {/* Reels Container - Fixed 3x3 Grid */}
-                  <div className="p-2 flex-1 flex items-stretch justify-stretch">
-                    <div className="grid grid-cols-3 grid-rows-3 gap-2 w-full h-full max-w-none max-h-none">
-                      {/* Render symbols row by row */}
-                      {[0, 1, 2].map((rowIndex) => (
-                        reels.map((reel, reelIndex) => {
-                          const symbol = reel[rowIndex];
-                          const isWinning = isPositionWinning(reelIndex, rowIndex);
-                          const coinValue = getCoinValue(reelIndex, rowIndex);
-                          const isCoin = symbol === "🪙";
+                  {/* Reels Container - 3 Vertical Spinning Reels */}
+                  <div className="p-2 flex-1 flex items-stretch justify-stretch relative">
+                    <div className="flex gap-2 w-full h-full relative">
+                      {/* Each Reel Column */}
+                      {[0, 1, 2].map((reelIndex) => (
+                        <div 
+                          key={`reel-${reelIndex}`}
+                          className={`
+                            flex-1 relative overflow-hidden rounded-lg 
+                            bg-gradient-to-b from-blue-900 via-blue-800 to-blue-900
+                            ${reelSpinning[reelIndex] ? 'reel-frame-spinning' : ''}
+                          `}
+                        >
+                          {/* Speed lines during fast spin */}
+                          {reelBlur[reelIndex] && (
+                            <>
+                              <div className="speed-line" style={{ left: '20%', animationDelay: '0ms' }} />
+                              <div className="speed-line" style={{ left: '50%', animationDelay: '50ms' }} />
+                              <div className="speed-line" style={{ left: '80%', animationDelay: '100ms' }} />
+                            </>
+                          )}
                           
-                          return (
-                            <div
-                              key={`${reelIndex}-${rowIndex}`}
-                              className={`
-                                relative rounded-lg overflow-hidden
-                                bg-gradient-to-b from-blue-500 via-blue-600 to-blue-700
-                                ${isWinning ? 'ring-3 ring-yellow-400 shadow-lg shadow-yellow-400/50' : ''}
-                              `}
-                            >
-                              {/* Symbol container - fills the cell */}
-                              <div 
-                                className={`
-                                  absolute inset-0 flex items-center justify-center
-                                  ${isWinning ? 'scale-105' : ''}
-                                  transition-transform duration-100
-                                `}
-                              >
-                                <SlotSymbol 
-                                  symbol={symbol} 
-                                  size={0} 
-                                  className="w-full h-full drop-shadow-lg scale-110" 
-                                />
-                              </div>
+                          {/* Reel Strip Container */}
+                          <div 
+                            className={`
+                              absolute inset-x-0 top-0 flex flex-col
+                              ${reelSpinning[reelIndex] ? 'reel-spinning' : 'reel-stopped'}
+                              ${reelBlur[reelIndex] ? 'blur-[3px]' : ''}
+                              transition-[filter] duration-200
+                            `}
+                            style={{
+                              height: reelSpinning[reelIndex] ? `${REEL_STRIP_LENGTH * 33.333}%` : '100%',
+                            }}
+                          >
+                            {/* Render symbols */}
+                            {(reelSpinning[reelIndex] ? reelStrips[reelIndex] : reels[reelIndex]).map((symbol, symbolIndex) => {
+                              const isWinning = !reelSpinning[reelIndex] && isPositionWinning(reelIndex, symbolIndex);
+                              const coinValue = getCoinValue(reelIndex, symbolIndex);
+                              const isCoin = symbol === "🪙" || symbol === "coin";
                               
-                              {/* Coin value display */}
-                              {isCoin && coinValue && !isSpinning && (
-                                <div className="absolute bottom-1 left-0 right-0 text-center z-10">
-                                  <span className="text-[10px] font-bold text-yellow-300 bg-black/70 px-1.5 py-0.5 rounded">
-                                    {coinValue.toFixed(2)}
-                                  </span>
+                              return (
+                                <div
+                                  key={`${reelIndex}-${symbolIndex}-${reelSpinning[reelIndex] ? 'spin' : 'stop'}`}
+                                  className={`
+                                    relative flex-shrink-0
+                                    bg-gradient-to-b from-blue-500/40 via-blue-600/50 to-blue-700/40
+                                    border-b border-blue-400/30
+                                    ${isWinning ? 'winning-symbol-animate ring-2 ring-inset ring-yellow-400 shadow-lg shadow-yellow-400/50 z-10' : ''}
+                                  `}
+                                  style={{
+                                    height: reelSpinning[reelIndex] 
+                                      ? `${100 / REEL_STRIP_LENGTH}%` 
+                                      : '33.333%',
+                                  }}
+                                >
+                                  {/* Symbol */}
+                                  <div 
+                                    className={`
+                                      absolute inset-1 flex items-center justify-center
+                                      ${isWinning ? 'scale-105' : ''}
+                                      ${!reelSpinning[reelIndex] && !isWinning ? 'symbol-landing' : ''}
+                                    `}
+                                  >
+                                    <SlotSymbol 
+                                      symbol={symbol} 
+                                      size={0} 
+                                      className="w-full h-full drop-shadow-lg" 
+                                    />
+                                  </div>
+                                  
+                                  {/* Win effects */}
+                                  {isWinning && (
+                                    <>
+                                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-300/30 to-transparent animate-pulse" />
+                                      <div className="absolute inset-0 shadow-[inset_0_0_20px_rgba(250,204,21,0.4)] animate-pulse" />
+                                    </>
+                                  )}
+                                  
+                                  {/* Coin value */}
+                                  {isCoin && coinValue && !isSpinning && !reelSpinning[reelIndex] && (
+                                    <div className="absolute bottom-1 left-0 right-0 text-center z-10">
+                                      <span className="text-[10px] font-bold text-yellow-300 bg-black/70 px-1.5 py-0.5 rounded">
+                                        {coinValue.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                              
-                              {/* Win glow */}
-                              {isWinning && (
-                                <div className="absolute inset-0 bg-yellow-400/30 animate-pulse rounded-lg" />
-                              )}
-                            </div>
-                          );
-                        })
-                      )).flat()}
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Reel frame overlay - top and bottom shadows for depth */}
+                          <div className="absolute inset-0 pointer-events-none z-20">
+                            <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-blue-950/90 to-transparent" />
+                            <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-blue-950/90 to-transparent" />
+                            {/* Side shadows */}
+                            <div className="absolute top-0 bottom-0 left-0 w-2 bg-gradient-to-r from-blue-950/50 to-transparent" />
+                            <div className="absolute top-0 bottom-0 right-0 w-2 bg-gradient-to-l from-blue-950/50 to-transparent" />
+                          </div>
+                          
+                          {/* Center payline indicator */}
+                          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[2px] bg-yellow-500/30 pointer-events-none z-10" />
+                        </div>
+                      ))}
+                      
+                      {/* Reel separators */}
+                      <div className="reel-separator" style={{ left: 'calc(33.333% - 1px)' }} />
+                      <div className="reel-separator" style={{ left: 'calc(66.666% - 1px)' }} />
                     </div>
+                    
+                    {/* Win Lines Overlay */}
+                    {winLines.length > 0 && (
+                      <div className="absolute inset-0 pointer-events-none z-40">
+                        {/* Row win lines */}
+                        {winLines.includes('row-0') && (
+                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(16.67% - 2px)' }} />
+                        )}
+                        {winLines.includes('row-1') && (
+                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(50% - 2px)' }} />
+                        )}
+                        {winLines.includes('row-2') && (
+                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(83.33% - 2px)' }} />
+                        )}
+                        {/* Column win lines */}
+                        {winLines.includes('col-0') && (
+                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(16.67% - 2px)' }} />
+                        )}
+                        {winLines.includes('col-1') && (
+                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(50% - 2px)' }} />
+                        )}
+                        {winLines.includes('col-2') && (
+                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(83.33% - 2px)' }} />
+                        )}
+                        {/* Diagonal win lines */}
+                        {winLines.includes('diag-1') && (
+                          <div className="absolute inset-0">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <line x1="0" y1="0" x2="100" y2="100" stroke="#fbbf24" strokeWidth="2" className="animate-pulse" style={{ filter: 'drop-shadow(0 0 8px #fbbf24)' }} />
+                            </svg>
+                          </div>
+                        )}
+                        {winLines.includes('diag-2') && (
+                          <div className="absolute inset-0">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <line x1="0" y1="100" x2="100" y2="0" stroke="#fbbf24" strokeWidth="2" className="animate-pulse" style={{ filter: 'drop-shadow(0 0 8px #fbbf24)' }} />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

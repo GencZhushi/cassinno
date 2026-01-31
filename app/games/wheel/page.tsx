@@ -275,7 +275,7 @@ export default function WheelPage() {
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/lobby">
+          <Link href="/">
             <Button variant="ghost" size="icon" className="hover:bg-white/10">
               <ArrowLeft className="w-5 h-5" />
             </Button>

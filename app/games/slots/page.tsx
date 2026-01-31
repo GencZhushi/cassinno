@@ -246,7 +246,7 @@ export default function SlotsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <Link href="/lobby">
+            <Link href="/">
               <Button variant="ghost" size="icon" className="hover:bg-white/10">
                 <ArrowLeft className="w-5 h-5" />
               </Button>

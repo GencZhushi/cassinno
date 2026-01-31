@@ -399,7 +399,7 @@ export default function BigBassBonanzaPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Link href="/lobby">
+            <Link href="/">
               <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white h-8 w-8">
                 <ArrowLeft className="w-4 h-4" />
               </Button>

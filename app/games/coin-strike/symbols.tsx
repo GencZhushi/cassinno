@@ -15,80 +15,80 @@ const useFillMode = (size: number, className: string) =>
 export const CherrySymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/cherry.png" alt="Cherry" fill className="object-cover" unoptimized />
+      <Image src="/symbols/cherry.png" alt="Cherry" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/cherry.png" alt="Cherry" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/cherry.png" alt="Cherry" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const OrangeSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/orange.png" alt="Orange" fill className="object-cover" unoptimized />
+      <Image src="/symbols/orange.png" alt="Orange" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/orange.png" alt="Orange" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/orange.png" alt="Orange" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const BellSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/bell.png" alt="Bell" fill className="object-cover" unoptimized />
+      <Image src="/symbols/bell.png" alt="Bell" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/bell.png" alt="Bell" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/bell.png" alt="Bell" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const GrapesSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/grapes.png" alt="Grapes" fill className="object-cover" unoptimized />
+      <Image src="/symbols/grapes.png" alt="Grapes" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/grapes.png" alt="Grapes" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/grapes.png" alt="Grapes" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const BarSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/gold-bar.png" alt="Gold Bar" fill className="object-cover" unoptimized />
+      <Image src="/symbols/gold-bar.png" alt="Gold Bar" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/gold-bar.png" alt="Gold Bar" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/gold-bar.png" alt="Gold Bar" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const SevenSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/seven.png" alt="Lucky 7" fill className="object-cover" unoptimized />
+      <Image src="/symbols/seven.png" alt="Lucky 7" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/seven.png" alt="Lucky 7" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/seven.png" alt="Lucky 7" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const GoldCoinSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/coin.png" alt="Gold Coin" fill className="object-cover" unoptimized />
+      <Image src="/symbols/coin.png" alt="Gold Coin" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/coin.png" alt="Gold Coin" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/coin.png" alt="Gold Coin" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 
 export const WildSymbol = ({ className = "", size = 64 }: SymbolProps) => (
   useFillMode(size, className) ? (
     <div className={`relative ${className}`}>
-      <Image src="/symbols/wild.png" alt="Wild" fill className="object-cover" unoptimized />
+      <Image src="/symbols/wild.png" alt="Wild" fill className="object-contain" unoptimized />
     </div>
   ) : (
-    <Image src="/symbols/wild.png" alt="Wild" width={size} height={size} className={`object-cover ${className}`} unoptimized />
+    <Image src="/symbols/wild.png" alt="Wild" width={size} height={size} className={`object-contain ${className}`} unoptimized />
   )
 );
 

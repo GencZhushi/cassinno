@@ -61,11 +61,16 @@ interface CoinData {
   value: number;
 }
 
+const GUEST_FREE_ROUNDS = 5;
+const GUEST_DEMO_BALANCE = 10000;
+
 export default function CoinStrikePage() {
   const { toast } = useToast();
   const [balance, setBalance] = useState<number>(0);
   const [betAmount, setBetAmount] = useState<number>(1.5);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestFreeRoundsUsed, setGuestFreeRoundsUsed] = useState(0);
   const [reels, setReels] = useState<string[][]>(
     Array(REELS).fill(null).map(() => 
       Array(ROWS).fill(null).map(() => 
@@ -112,6 +117,19 @@ export default function CoinStrikePage() {
     fetchBalance();
   }, []);
 
+  // Check if user is guest and set demo balance
+  useEffect(() => {
+    const checkGuestStatus = async () => {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
+        // User is not logged in - guest mode
+        setIsGuest(true);
+        setBalance(GUEST_DEMO_BALANCE);
+      }
+    };
+    checkGuestStatus();
+  }, []);
+
   useEffect(() => {
     autoSpinRef.current = autoSpin;
   }, [autoSpin]);
@@ -121,6 +139,11 @@ export default function CoinStrikePage() {
     if (res.ok) {
       const data = await res.json();
       setBalance(parseInt(data.balance));
+      setIsGuest(false);
+    } else {
+      // Guest mode
+      setIsGuest(true);
+      setBalance(GUEST_DEMO_BALANCE);
     }
   };
 
@@ -149,9 +172,9 @@ export default function CoinStrikePage() {
     setReelSpinning([true, true, true]);
     setReelBlur([true, true, true]);
     
-    // Base timing for spin
-    const baseSpinTime = turboMode ? 600 : 1200;
-    const reelDelay = turboMode ? 150 : 300; // Delay between each reel stopping
+    // Base timing for spin - slower and smoother
+    const baseSpinTime = turboMode ? 1000 : 2000;
+    const reelDelay = turboMode ? 300 : 500; // Delay between each reel stopping
     
     // Schedule each reel to stop with staggered timing
     return new Promise<void>((resolve) => {
@@ -166,7 +189,7 @@ export default function CoinStrikePage() {
             return newBlur;
           });
           
-          // Then stop spinning after a brief slowdown
+          // Then stop spinning after a brief slowdown - smoother transition
           setTimeout(() => {
             setReelSpinning(prev => {
               const newSpinning = [...prev];
@@ -190,9 +213,9 @@ export default function CoinStrikePage() {
             
             // If this is the last reel, resolve
             if (i === REELS - 1) {
-              setTimeout(resolve, 100);
+              setTimeout(resolve, 150);
             }
-          }, turboMode ? 100 : 200);
+          }, turboMode ? 200 : 400);
         }, stopTime);
         
         reelStopTimeouts.current.push(timeout);
@@ -220,12 +243,31 @@ export default function CoinStrikePage() {
       const res = await fetch("/api/games/coin-strike/spin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: totalBet }),
+        body: JSON.stringify({ 
+          amount: totalBet,
+          guestFreeRoundsUsed: isGuest ? guestFreeRoundsUsed : 0,
+        }),
       });
 
       const data = await res.json();
       
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) {
+        if (data.requiresLogin) {
+          toast({ 
+            title: "Free rounds exhausted!", 
+            description: "Please login to continue playing.",
+            variant: "destructive" 
+          });
+          setAutoSpin(false);
+          return;
+        }
+        throw new Error(data.error);
+      }
+
+      // Track guest free rounds
+      if (isGuest && !data.isHoldAndWin) {
+        setGuestFreeRoundsUsed(prev => prev + 1);
+      }
 
       // Start the realistic spinning animation with the final results
       await startReelSpin(data.reels);
@@ -477,7 +519,16 @@ export default function CoinStrikePage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {/* Guest Free Rounds Indicator */}
+            {isGuest && (
+              <div className="flex items-center gap-1 bg-amber-600/20 border border-amber-500/30 rounded-lg px-2 py-1">
+                <span className="text-xs text-amber-300">Free Spins:</span>
+                <span className="text-sm font-bold text-yellow-400">
+                  {Math.max(0, GUEST_FREE_ROUNDS - guestFreeRoundsUsed)}/{GUEST_FREE_ROUNDS}
+                </span>
+              </div>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -658,46 +709,6 @@ export default function CoinStrikePage() {
                       <div className="reel-separator" style={{ left: 'calc(66.666% - 1px)' }} />
                     </div>
                     
-                    {/* Win Lines Overlay */}
-                    {winLines.length > 0 && (
-                      <div className="absolute inset-0 pointer-events-none z-40">
-                        {/* Row win lines */}
-                        {winLines.includes('row-0') && (
-                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(16.67% - 2px)' }} />
-                        )}
-                        {winLines.includes('row-1') && (
-                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(50% - 2px)' }} />
-                        )}
-                        {winLines.includes('row-2') && (
-                          <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ top: 'calc(83.33% - 2px)' }} />
-                        )}
-                        {/* Column win lines */}
-                        {winLines.includes('col-0') && (
-                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(16.67% - 2px)' }} />
-                        )}
-                        {winLines.includes('col-1') && (
-                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(50% - 2px)' }} />
-                        )}
-                        {winLines.includes('col-2') && (
-                          <div className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-yellow-400 to-transparent shadow-[0_0_15px_#fbbf24] animate-pulse" style={{ left: 'calc(83.33% - 2px)' }} />
-                        )}
-                        {/* Diagonal win lines */}
-                        {winLines.includes('diag-1') && (
-                          <div className="absolute inset-0">
-                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                              <line x1="0" y1="0" x2="100" y2="100" stroke="#fbbf24" strokeWidth="2" className="animate-pulse" style={{ filter: 'drop-shadow(0 0 8px #fbbf24)' }} />
-                            </svg>
-                          </div>
-                        )}
-                        {winLines.includes('diag-2') && (
-                          <div className="absolute inset-0">
-                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                              <line x1="0" y1="100" x2="100" y2="0" stroke="#fbbf24" strokeWidth="2" className="animate-pulse" style={{ filter: 'drop-shadow(0 0 8px #fbbf24)' }} />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

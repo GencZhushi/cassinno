@@ -172,9 +172,9 @@ export default function CoinStrikePage() {
     setReelSpinning([true, true, true]);
     setReelBlur([true, true, true]);
     
-    // Base timing for spin - slower and smoother
-    const baseSpinTime = turboMode ? 1000 : 2000;
-    const reelDelay = turboMode ? 300 : 500; // Delay between each reel stopping
+    // Base timing for spin - even slower and smoother
+    const baseSpinTime = turboMode ? 1500 : 3000;
+    const reelDelay = turboMode ? 400 : 700; // Delay between each reel stopping
     
     // Schedule each reel to stop with staggered timing
     return new Promise<void>((resolve) => {
@@ -215,7 +215,7 @@ export default function CoinStrikePage() {
             if (i === REELS - 1) {
               setTimeout(resolve, 150);
             }
-          }, turboMode ? 200 : 400);
+          }, turboMode ? 350 : 600);
         }, stopTime);
         
         reelStopTimeouts.current.push(timeout);

@@ -372,18 +372,18 @@ export function serializeGatesOfOlympusResult(result: GatesOfOlympusResult): obj
   };
 }
 
-// Symbol emoji mapping for frontend - Greek mythology themed
+// Symbol key mapping for frontend - maps to image file names
 export const SYMBOL_EMOJIS: Record<OlympusSymbol, string> = {
-  blueCrown:   "💎",     // Blue gem crown
-  greenCrown:  "🔷",     // Green/teal crown
-  purpleCrown: "🟣",     // Purple crown
-  redCrown:    "🔴",     // Red crown
-  blueGem:     "💠",     // Blue diamond gem
-  greenGem:    "✳️",     // Green gem
-  purpleGem:   "🔮",     // Purple crystal gem
-  yellowGem:   "👑",     // Gold/yellow crown gem
-  redGem:      "❤️‍🔥",   // Red premium gem (fire heart)
-  scatter:     "⚡",     // Lightning bolt scatter
+  blueCrown:   "blue-diamond",      // Blue diamond gem
+  greenCrown:  "green-triangle",    // Green triangle gem
+  purpleCrown: "purple-triangle",   // Purple triangle gem
+  redCrown:    "red-pentagon",      // Red pentagon gem
+  blueGem:     "hourglass",         // Hourglass
+  greenGem:    "chalice",           // Golden chalice
+  purpleGem:   "pink-ring",         // Pink ring
+  yellowGem:   "yellow-hexagon",    // Yellow hexagon gem
+  redGem:      "crown",             // Golden crown (highest paying)
+  scatter:     "scatter",           // Zeus scatter
 };
 
 // Symbol display names

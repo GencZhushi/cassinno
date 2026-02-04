@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import Image from "next/image";
 import { 
   ArrowLeft, 
   Loader2, 
@@ -16,37 +16,31 @@ import {
   X,
   Minus,
   Plus,
-  Crown,
-  Gem
+  RotateCcw,
+  RefreshCw,
+  Maximize2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const GRID_COLS = 6;
 const GRID_ROWS = 5;
 
-const SYMBOL_DATA: Record<string, { name: string; gradient: string; glow: string }> = {
-  "💎": { name: "Blue Crown", gradient: "from-blue-400 to-blue-600", glow: "shadow-blue-400/50" },
-  "🔷": { name: "Green Crown", gradient: "from-teal-400 to-cyan-600", glow: "shadow-teal-400/50" },
-  "🟣": { name: "Purple Crown", gradient: "from-purple-400 to-purple-600", glow: "shadow-purple-400/50" },
-  "🔴": { name: "Red Crown", gradient: "from-red-400 to-red-600", glow: "shadow-red-400/50" },
-  "💠": { name: "Sapphire Gem", gradient: "from-sky-400 to-blue-600", glow: "shadow-sky-400/50" },
-  "✳️": { name: "Emerald Gem", gradient: "from-emerald-400 to-green-600", glow: "shadow-emerald-400/50" },
-  "🔮": { name: "Amethyst Gem", gradient: "from-violet-400 to-purple-600", glow: "shadow-violet-400/50" },
-  "👑": { name: "Golden Chalice", gradient: "from-yellow-400 to-amber-600", glow: "shadow-yellow-400/50" },
-  "❤️‍🔥": { name: "Ruby Ring", gradient: "from-rose-500 to-red-600", glow: "shadow-rose-400/50" },
-  "⚡": { name: "Zeus Lightning", gradient: "from-yellow-300 via-amber-400 to-orange-500", glow: "shadow-yellow-400/50" },
+// Symbol configuration with image paths
+const SYMBOLS: Record<string, { image: string; name: string; color: string }> = {
+  "purple-triangle": { image: "/symbols/olympus/purple-triangle.png", name: "Purple Gem", color: "#A855F7" },
+  "green-triangle": { image: "/symbols/olympus/green-triangle.png", name: "Green Gem", color: "#22C55E" },
+  "hourglass": { image: "/symbols/olympus/hourglass.png", name: "Hourglass", color: "#06B6D4" },
+  "pink-ring": { image: "/symbols/olympus/pink-ring.png", name: "Pink Ring", color: "#EC4899" },
+  "blue-diamond": { image: "/symbols/olympus/blue-diamond.png", name: "Blue Diamond", color: "#3B82F6" },
+  "red-pentagon": { image: "/symbols/olympus/red-pentagon.png", name: "Red Gem", color: "#DC2626" },
+  "yellow-hexagon": { image: "/symbols/olympus/yellow-hexagon.png", name: "Gold Gem", color: "#F59E0B" },
+  "chalice": { image: "/symbols/olympus/chalice.png", name: "Chalice", color: "#6366F1" },
+  "crown": { image: "/symbols/olympus/crown.png", name: "Crown", color: "#EAB308" },
+  "scatter": { image: "/symbols/olympus/scatter.png", name: "Zeus Scatter", color: "#FBBF24" },
 };
 
-const LIGHTNING_COLORS = ["#FFD700", "#FFA500", "#87CEEB", "#E6E6FA", "#FFFFFF", "#FFE4B5", "#B8860B", "#DAA520"];
-
-interface LightningBolt {
-  id: number;
-  x: number;
-  color: string;
-  delay: number;
-  size: number;
-  opacity: number;
-}
+const BASE_SYMBOLS = ["purple-triangle", "green-triangle", "hourglass", "pink-ring", "blue-diamond", "red-pentagon", "yellow-hexagon", "chalice", "crown"];
+const ALL_SYMBOLS = [...BASE_SYMBOLS, "scatter"];
 
 interface TumbleData {
   grid: string[][];
@@ -59,23 +53,23 @@ interface TumbleData {
 export default function GatesOfOlympusPage() {
   const { toast } = useToast();
   const [balance, setBalance] = useState<number>(0);
-  const [betAmount, setBetAmount] = useState<number>(10);
+  const [betAmount, setBetAmount] = useState<number>(2);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [symbolBounce, setSymbolBounce] = useState(false);
   const [grid, setGrid] = useState<string[][]>(
     Array(GRID_COLS).fill(null).map(() => 
       Array(GRID_ROWS).fill(null).map(() => 
-        ["💎", "🔷", "🟣", "🔴", "💠", "✳️", "🔮", "👑"][Math.floor(Math.random() * 8)]
+        BASE_SYMBOLS[Math.floor(Math.random() * BASE_SYMBOLS.length)]
       )
     )
   );
   const [lastWin, setLastWin] = useState<number>(0);
+  const [tumbleWin, setTumbleWin] = useState<number>(0);
   const [winningPositions, setWinningPositions] = useState<[number, number][]>([]);
   const [showPaytable, setShowPaytable] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [volume, setVolume] = useState(50);
   const [autoSpin, setAutoSpin] = useState(false);
-  const [spinCount, setSpinCount] = useState(0);
-  const [totalWon, setTotalWon] = useState(0);
-  const [lightning, setLightning] = useState<LightningBolt[]>([]);
   const [tumbleIndex, setTumbleIndex] = useState(-1);
   const [tumbles, setTumbles] = useState<TumbleData[]>([]);
   const [currentMultiplier, setCurrentMultiplier] = useState(1);
@@ -84,7 +78,7 @@ export default function GatesOfOlympusPage() {
   const [multiplierOrbs, setMultiplierOrbs] = useState<{ position: [number, number]; value: number }[]>([]);
   const [showBigWin, setShowBigWin] = useState(false);
   const [bigWinAmount, setBigWinAmount] = useState(0);
-  const [zeusActive, setZeusActive] = useState(false);
+  const [doubleChanceEnabled, setDoubleChanceEnabled] = useState(false);
   const autoSpinRef = useRef(false);
   const freeSpinsRef = useRef(0);
   const betAmountRef = useRef(betAmount);
@@ -113,32 +107,11 @@ export default function GatesOfOlympusPage() {
     }
   };
 
-  const triggerLightning = useCallback((intensity: number = 30) => {
-    const bolts: LightningBolt[] = [];
-    for (let i = 0; i < intensity; i++) {
-      bolts.push({
-        id: i,
-        x: Math.random() * 100,
-        color: LIGHTNING_COLORS[Math.floor(Math.random() * LIGHTNING_COLORS.length)],
-        delay: Math.random() * 0.5,
-        size: Math.random() * 15 + 8,
-        opacity: Math.random() * 0.5 + 0.5,
-      });
-    }
-    setLightning(bolts);
-    setZeusActive(true);
-    setTimeout(() => {
-      setLightning([]);
-      setZeusActive(false);
-    }, 2000);
-  }, []);
-
   const showBigWinAnimation = useCallback((amount: number) => {
     setBigWinAmount(amount);
     setShowBigWin(true);
-    triggerLightning(60);
     setTimeout(() => setShowBigWin(false), 3500);
-  }, [triggerLightning]);
+  }, []);
 
   const animateTumbles = useCallback(async (tumbleData: TumbleData[]) => {
     for (let i = 0; i < tumbleData.length; i++) {
@@ -175,9 +148,11 @@ export default function GatesOfOlympusPage() {
 
     setIsSpinning(true);
     setLastWin(0);
+    setTumbleWin(0);
     setWinningPositions([]);
     setTumbles([]);
     setMultiplierOrbs([]);
+    setSymbolBounce(false);
     
     if (!isFreeSpin) {
       setCurrentMultiplier(1);
@@ -186,7 +161,7 @@ export default function GatesOfOlympusPage() {
     const animationInterval = setInterval(() => {
       setGrid(prev => prev.map(() => 
         Array(GRID_ROWS).fill(null).map(() => 
-          ["💎", "🔷", "🟣", "🔴", "💠", "✳️", "🔮", "👑", "❤️‍🔥", "⚡"][Math.floor(Math.random() * 10)]
+          ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]
         )
       ));
     }, 80);
@@ -211,6 +186,10 @@ export default function GatesOfOlympusPage() {
 
       setGrid(data.grid);
       
+      // Trigger bounce animation when symbols land
+      setSymbolBounce(true);
+      setTimeout(() => setSymbolBounce(false), 500);
+      
       if (isFreeSpin) {
         setFreeSpins(prev => Math.max(0, prev - 1));
       }
@@ -222,13 +201,12 @@ export default function GatesOfOlympusPage() {
 
       const winAmount = parseInt(data.totalWin);
       setLastWin(winAmount);
+      setTumbleWin(winAmount);
       setBalance(parseInt(data.newBalance));
-      setSpinCount(prev => prev + 1);
 
       if (data.freeSpinsWon > 0) {
         setFreeSpins(prev => prev + data.freeSpinsWon);
         setIsFreeSpinMode(true);
-        triggerLightning(50);
         toast({ 
           title: `⚡ ZEUS GRANTS ${data.freeSpinsWon} FREE SPINS!`, 
           variant: "success" 
@@ -236,8 +214,6 @@ export default function GatesOfOlympusPage() {
       }
 
       if (winAmount > 0) {
-        setTotalWon(prev => prev + winAmount);
-        
         if (winAmount >= currentBet * 100) {
           showBigWinAnimation(winAmount);
           toast({ title: `⚡ GODLY WIN! +${winAmount.toLocaleString()} tokens!`, variant: "success" });
@@ -245,10 +221,7 @@ export default function GatesOfOlympusPage() {
           showBigWinAnimation(winAmount);
           toast({ title: `🏛️ OLYMPIAN WIN! +${winAmount.toLocaleString()} tokens!`, variant: "success" });
         } else if (winAmount >= currentBet * 20) {
-          triggerLightning(40);
           toast({ title: `👑 EPIC WIN! +${winAmount.toLocaleString()} tokens!`, variant: "success" });
-        } else {
-          triggerLightning(20);
         }
       }
 
@@ -279,11 +252,11 @@ export default function GatesOfOlympusPage() {
     } finally {
       setIsSpinning(false);
     }
-  }, [balance, currentMultiplier, toast, triggerLightning, animateTumbles, showBigWinAnimation]);
+  }, [balance, currentMultiplier, toast, animateTumbles, showBigWinAnimation]);
 
   const adjustBet = (delta: number) => {
     if (isFreeSpinMode) return;
-    const newBet = Math.max(1, Math.min(500, betAmount + delta));
+    const newBet = Math.max(0.5, Math.min(500, betAmount + delta));
     setBetAmount(newBet);
   };
 
@@ -304,44 +277,27 @@ export default function GatesOfOlympusPage() {
     return multiplierOrbs.find(o => o.position[0] === col && o.position[1] === row);
   };
 
+  const buyFreeSpinsPrice = betAmount * 100;
+
   return (
-    <main className="min-h-screen pb-8 relative overflow-hidden bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900">
-      {/* Olympus Background Elements */}
+    <main className="min-h-screen relative overflow-hidden bg-gradient-to-b from-[#1a0a2e] via-[#2d1b4e] to-[#1a0a2e]">
+      {/* Background with Greek temple aesthetic */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Clouds and sky effect */}
-        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-amber-900/20 via-orange-900/10 to-transparent" />
-        <div className="absolute top-10 left-10 w-32 h-16 bg-white/5 rounded-full blur-xl animate-pulse" />
-        <div className="absolute top-20 right-20 w-48 h-20 bg-white/5 rounded-full blur-xl animate-pulse" style={{ animationDelay: "1s" }} />
+        {/* Sky gradient with sunset colors */}
+        <div className="absolute top-0 left-0 w-full h-48 bg-gradient-to-b from-orange-500/20 via-pink-500/10 to-transparent" />
         
-        {/* Temple pillars aesthetic */}
-        <div className="absolute bottom-0 left-5 w-4 h-40 bg-gradient-to-t from-amber-800/30 to-amber-600/10 rounded-t-lg" />
-        <div className="absolute bottom-0 right-5 w-4 h-40 bg-gradient-to-t from-amber-800/30 to-amber-600/10 rounded-t-lg" />
+        {/* Flame effects on sides */}
+        <div className="absolute top-20 left-4 w-8 h-32 bg-gradient-to-t from-orange-600/60 via-yellow-500/40 to-transparent rounded-full blur-md animate-pulse" />
+        <div className="absolute top-20 right-4 w-8 h-32 bg-gradient-to-t from-orange-600/60 via-yellow-500/40 to-transparent rounded-full blur-md animate-pulse" style={{ animationDelay: "0.5s" }} />
+        
+        {/* Temple pillars */}
+        <div className="absolute bottom-0 left-2 w-6 h-48 bg-gradient-to-t from-amber-900/40 via-amber-700/20 to-transparent rounded-t-lg" />
+        <div className="absolute bottom-0 right-2 w-6 h-48 bg-gradient-to-t from-amber-900/40 via-amber-700/20 to-transparent rounded-t-lg" />
         
         {/* Golden particles */}
-        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-yellow-400/40 rounded-full animate-ping" style={{ animationDuration: "3s" }} />
-        <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-amber-300/50 rounded-full animate-ping" style={{ animationDuration: "2.5s", animationDelay: "0.5s" }} />
-        <div className="absolute top-1/2 left-1/3 w-1.5 h-1.5 bg-yellow-500/30 rounded-full animate-ping" style={{ animationDuration: "4s", animationDelay: "1s" }} />
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-yellow-400/50 rounded-full animate-ping" style={{ animationDuration: "3s" }} />
+        <div className="absolute top-1/3 right-1/3 w-1 h-1 bg-amber-300/60 rounded-full animate-ping" style={{ animationDuration: "2.5s", animationDelay: "0.5s" }} />
       </div>
-
-      {/* Lightning Effects */}
-      {lightning.map((bolt) => (
-        <div
-          key={bolt.id}
-          className="lightning-bolt pointer-events-none z-40"
-          style={{
-            position: "fixed",
-            left: `${bolt.x}%`,
-            top: "-20px",
-            background: `linear-gradient(180deg, ${bolt.color}, transparent)`,
-            width: bolt.size / 3,
-            height: bolt.size * 8,
-            opacity: bolt.opacity,
-            animationDelay: `${bolt.delay}s`,
-            filter: `blur(${bolt.size / 10}px)`,
-            boxShadow: `0 0 ${bolt.size}px ${bolt.color}`,
-          }}
-        />
-      ))}
 
       {/* Big Win Overlay */}
       {showBigWin && (
@@ -364,294 +320,365 @@ export default function GatesOfOlympusPage() {
         </div>
       )}
 
-      <div className="container mx-auto px-3 py-3 max-w-4xl relative z-10">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
+      <div className="container mx-auto px-2 py-2 max-w-7xl relative z-10">
+        {/* Top Header Bar */}
+        <div className="flex items-center justify-between mb-2 px-2">
           <div className="flex items-center gap-2">
             <Link href="/">
-              <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white h-8 w-8">
+              <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white/70 h-8 w-8">
                 <ArrowLeft className="w-4 h-4" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 via-yellow-500 to-orange-500 flex items-center justify-center text-xl shadow-lg shadow-amber-500/30 ${zeusActive ? 'animate-pulse' : ''}`}>
-                ⚡
-              </div>
-              <div>
-                <h1 className="text-xl font-black bg-gradient-to-r from-amber-300 via-yellow-400 to-orange-400 bg-clip-text text-transparent">
-                  GATES OF OLYMPUS
-                </h1>
-                <p className="text-xs text-amber-300/80">6×5 • Pay Anywhere • Multipliers up to 500x</p>
-              </div>
+            <div className="flex items-center gap-1 text-white/60 text-sm">
+              <span className="font-semibold">Gates of Olympus</span>
+              <span className="px-2 py-0.5 bg-green-500/80 text-white text-xs rounded ml-2">Demo</span>
             </div>
           </div>
 
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="hover:bg-white/10 text-white h-8 w-8"
-            >
-              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowPaytable(true)}
-              className="hover:bg-white/10 text-white h-8 w-8"
-            >
+            <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white/70 h-8 w-8">
               <Info className="w-4 h-4" />
             </Button>
+            <Button variant="ghost" size="icon" className="hover:bg-white/10 text-white/70 h-8 w-8">
+              <Maximize2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
 
-        {/* Free Spins Banner */}
-        {isFreeSpinMode && (
-          <div className="mb-2 p-2 rounded-lg bg-gradient-to-r from-amber-600/80 via-yellow-600/80 to-orange-600/80 border border-yellow-400/50 backdrop-blur-sm shadow-lg shadow-amber-500/30">
-            <div className="flex items-center justify-center gap-3">
-              <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
-              <span className="text-lg font-bold text-white">ZEUS FREE SPINS: {freeSpins}</span>
-              <span className="text-base font-semibold text-yellow-300 bg-black/30 px-2 py-0.5 rounded">×{currentMultiplier}</span>
-              <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+        {/* Main Game Layout */}
+        <div className="flex gap-2">
+          {/* Left Panel - Buy Feature & Bet Options */}
+          <div className="hidden lg:flex flex-col gap-2 w-44">
+            {/* Buy Free Spins */}
+            <div className="bg-gradient-to-b from-[#1e3a5f] to-[#0f2744] rounded-lg p-3 border border-cyan-500/30">
+              <div className="text-center">
+                <p className="text-[10px] text-cyan-300 uppercase tracking-wider">ACHETER DES</p>
+                <p className="text-[10px] text-cyan-300 uppercase tracking-wider">SPINS GRATUITS</p>
+                <p className="text-2xl font-black text-yellow-400 mt-1">{buyFreeSpinsPrice.toFixed(0)} CHF</p>
+              </div>
+            </div>
+
+            {/* Double Chance / Mise Option */}
+            <div className="bg-gradient-to-b from-[#1e3a5f] to-[#0f2744] rounded-lg p-3 border border-cyan-500/30">
+              <div className="text-center">
+                <p className="text-[10px] text-white uppercase tracking-wider">MISE</p>
+                <p className="text-xl font-black text-yellow-400">{(betAmount * 1.25).toFixed(2)} CHF</p>
+                <p className="text-[10px] text-amber-400 uppercase">DOUBLE</p>
+                <p className="text-[8px] text-white/60 mt-1">CHANCE DE</p>
+                <p className="text-[8px] text-white/60">GAGNER UNE FONCTION</p>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <button 
+                    onClick={() => setDoubleChanceEnabled(!doubleChanceEnabled)}
+                    className={`w-10 h-5 rounded-full transition-colors ${doubleChanceEnabled ? 'bg-green-500' : 'bg-gray-600'}`}
+                  >
+                    <div className={`w-4 h-4 bg-white rounded-full transition-transform ${doubleChanceEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                  <span className="text-xs text-white/60">{doubleChanceEnabled ? 'ON' : 'OFF'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bet Display */}
+            <div className="bg-black/40 rounded-lg p-2 border border-amber-500/20">
+              <p className="text-[10px] text-amber-300/60 text-center">10 ▼</p>
             </div>
           </div>
-        )}
 
-        {/* Balance & Stats Bar */}
-        <div className="grid grid-cols-3 gap-2 mb-3">
-          <Card className="bg-white/10 backdrop-blur-md border-amber-500/30">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-amber-300 uppercase">Balance</p>
-              <p className="text-lg font-bold text-yellow-400">{balance.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 backdrop-blur-md border-green-500/30">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-green-300 uppercase">Won</p>
-              <p className="text-lg font-bold text-green-400">+{totalWon.toLocaleString()}</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white/10 backdrop-blur-md border-blue-500/30">
-            <CardContent className="p-2 text-center">
-              <p className="text-[10px] text-blue-300 uppercase">Spins</p>
-              <p className="text-lg font-bold text-blue-400">{spinCount}</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Game Grid */}
-        <div className="relative rounded-2xl p-[3px] mb-3 bg-gradient-to-b from-amber-500 via-yellow-600 to-orange-600 shadow-xl shadow-amber-500/20">
-          <div className="relative rounded-xl overflow-hidden">
-            {/* Top Banner - Olympus Style */}
-            <div className="bg-gradient-to-r from-amber-700 via-yellow-600 to-amber-700 py-1.5 px-4 flex items-center justify-center gap-2 border-b border-yellow-400/30">
-              <Crown className="w-4 h-4 text-yellow-300" />
-              <span className="text-base font-bold text-white tracking-wide drop-shadow-lg">
-                GATES OF OLYMPUS
-              </span>
-              <Crown className="w-4 h-4 text-yellow-300" />
+          {/* Center - Main Game Area */}
+          <div className="flex-1">
+            {/* Tumble Win Banner */}
+            <div className="relative mb-2">
+              <div className="bg-gradient-to-r from-amber-900/80 via-red-900/90 to-amber-900/80 rounded-t-xl py-2 px-4 border-2 border-amber-500/50 shadow-lg">
+                <div className="text-center">
+                  <p className="text-[10px] text-amber-200/80 uppercase tracking-widest">GAIN DE LA DÉGRINGOLADE</p>
+                  <p className="text-3xl font-black text-yellow-400 drop-shadow-lg">
+                    {tumbleWin > 0 ? tumbleWin.toFixed(2) : "0,00"}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Grid Container */}
-            <div className="bg-gradient-to-b from-indigo-950 via-slate-900 to-indigo-950 p-2">
-              <div className="bg-black/50 rounded-xl p-2 border-2 border-amber-500/40 overflow-hidden shadow-inner">
-                <div className="grid grid-cols-6 gap-1">
-                  {grid.map((col, colIndex) => (
-                    col.map((symbol, rowIndex) => {
-                      const isWinning = isPositionWinning(colIndex, rowIndex);
-                      const orb = getOrbAtPosition(colIndex, rowIndex);
-                      const symbolInfo = SYMBOL_DATA[symbol] || { name: "Unknown", gradient: "from-gray-400 to-gray-600", glow: "" };
-                      
-                      return (
-                        <div
-                          key={`${colIndex}-${rowIndex}`}
-                          className={`
-                            relative aspect-square rounded-lg flex items-center justify-center text-2xl sm:text-3xl
-                            transition-all duration-200 overflow-hidden
-                            ${isWinning 
-                              ? `bg-gradient-to-br ${symbolInfo.gradient} ring-2 ring-yellow-400 ring-inset shadow-lg ${symbolInfo.glow}` 
-                              : "bg-gradient-to-br from-slate-800/80 to-slate-900/80"
-                            }
-                          `}
-                        >
-                          <span 
-                            className="transition-all duration-200"
+            {/* Game Grid Frame */}
+            <div className="relative">
+              {/* Golden ornate frame */}
+              <div className="absolute -inset-1 bg-gradient-to-b from-amber-400 via-yellow-600 to-amber-700 rounded-xl opacity-80" />
+              <div className="absolute -inset-0.5 bg-gradient-to-b from-amber-300 via-yellow-500 to-amber-600 rounded-xl" />
+              
+              {/* Inner frame with purple background */}
+              <div className="relative bg-gradient-to-b from-[#3d1f5c] via-[#2a1541] to-[#3d1f5c] rounded-lg p-1 overflow-hidden">
+                {/* Grid */}
+                <div className="bg-[#1a0a2e]/90 rounded-lg p-2 backdrop-blur-sm">
+                  <div className="grid grid-cols-6 gap-1">
+                    {grid.map((col, colIndex) => (
+                      col.map((symbol, rowIndex) => {
+                        const isWinning = isPositionWinning(colIndex, rowIndex);
+                        const orb = getOrbAtPosition(colIndex, rowIndex);
+                        const symbolData = SYMBOLS[symbol] || SYMBOLS["purple-triangle"];
+                        const symbolColor = symbolData.color;
+                        
+                        return (
+                          <div
+                            key={`${colIndex}-${rowIndex}`}
+                            className={`
+                              relative aspect-square rounded-lg flex items-center justify-center
+                              overflow-visible
+                              ${isWinning ? "winning-symbol-container z-10" : ""}
+                              ${symbolBounce && !isSpinning ? "symbol-bounce" : ""}
+                            `}
                             style={{
-                              textShadow: isWinning 
-                                ? "0 0 20px rgba(255,215,0,0.9)" 
-                                : "0 2px 4px rgba(0,0,0,0.5)",
-                              filter: isWinning ? "brightness(1.3) drop-shadow(0 0 8px gold)" : "none",
-                              transform: isWinning ? "scale(1.1)" : "scale(1)",
+                              animationDelay: symbolBounce ? `${(colIndex * GRID_ROWS + rowIndex) * 30}ms` : "0ms"
                             }}
                           >
-                            {symbol}
-                          </span>
-                          
-                          {/* Win glow effect */}
-                          {isWinning && (
-                            <div className="absolute inset-0 bg-yellow-400/25 animate-pulse rounded-lg" />
-                          )}
-                          
-                          {/* Multiplier Orb Overlay */}
-                          {orb && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-500/90 to-yellow-600/90 rounded-lg border-2 border-yellow-300 shadow-lg shadow-yellow-500/50">
-                              <div className="flex flex-col items-center">
-                                <Sparkles className="w-3 h-3 text-yellow-200 animate-spin" />
-                                <span className="text-sm font-black text-white drop-shadow-lg">{orb.value}x</span>
-                              </div>
+                            {/* Golden glow background for winning symbols */}
+                            {isWinning && (
+                              <div className="absolute -inset-1 rounded-xl winning-glow-bg" />
+                            )}
+                            
+                            {/* Golden border frame for winning */}
+                            {isWinning && (
+                              <div className="absolute -inset-0.5 rounded-lg border-2 border-yellow-400 winning-border-pulse" />
+                            )}
+                            
+                            {/* Symbol container with pop-up animation */}
+                            <div 
+                              className={`
+                                relative w-full h-full p-0.5 transition-all duration-300
+                                ${isWinning ? "winning-symbol-pop" : ""}
+                              `}
+                            >
+                              <Image
+                                src={symbolData.image}
+                                alt={symbolData.name}
+                                fill
+                                className={`object-contain ${isWinning ? "winning-symbol-glow" : ""}`}
+                                sizes="(max-width: 768px) 50px, 80px"
+                              />
                             </div>
-                          )}
-                          
-                          {/* Scatter glow */}
-                          {symbol === "⚡" && !isWinning && (
-                            <div className="absolute inset-0 rounded-lg border border-yellow-400/60" />
-                          )}
-                        </div>
-                      );
-                    })
-                  )).flat()}
+                            
+                            {/* Shimmer/shine effect overlay */}
+                            {isWinning && (
+                              <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
+                                <div className="winning-shimmer" />
+                              </div>
+                            )}
+                            
+                            {/* Golden sparkle particles */}
+                            {isWinning && (
+                              <>
+                                <div className="absolute -top-1 -left-1 w-2 h-2 winning-sparkle" style={{ animationDelay: "0ms" }}>✦</div>
+                                <div className="absolute -top-1 -right-1 w-2 h-2 winning-sparkle" style={{ animationDelay: "200ms" }}>✦</div>
+                                <div className="absolute -bottom-1 -left-1 w-2 h-2 winning-sparkle" style={{ animationDelay: "400ms" }}>✦</div>
+                                <div className="absolute -bottom-1 -right-1 w-2 h-2 winning-sparkle" style={{ animationDelay: "600ms" }}>✦</div>
+                              </>
+                            )}
+                            
+                            {orb && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-500/90 to-yellow-600/90 rounded-lg border-2 border-yellow-300 shadow-lg shadow-yellow-500/50 z-20">
+                                <div className="flex flex-col items-center">
+                                  <Sparkles className="w-3 h-3 text-yellow-200 animate-spin" />
+                                  <span className="text-sm font-black text-white drop-shadow-lg">{orb.value}x</span>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {symbol === "scatter" && !isWinning && (
+                              <div className="absolute inset-0 rounded-lg border border-yellow-400/60 animate-pulse" />
+                            )}
+                          </div>
+                        );
+                      })
+                    )).flat()}
+                  </div>
                 </div>
-              </div>
-
-              {/* Win Display */}
-              <div className="h-12 flex items-center justify-center mt-2">
-                {lastWin > 0 ? (
-                  <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 shadow-lg shadow-amber-500/40">
-                    <Trophy className="w-5 h-5 text-yellow-100" />
-                    <span className="text-xl font-black text-white drop-shadow-lg">+{lastWin.toLocaleString()}</span>
-                    <Trophy className="w-5 h-5 text-yellow-100" />
-                  </div>
-                ) : tumbleIndex >= 0 ? (
-                  <div className="flex items-center gap-2 text-amber-400">
-                    <Sparkles className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-bold">Divine Tumble... ({tumbleIndex + 1}/{tumbles.length})</span>
-                  </div>
-                ) : isSpinning ? (
-                  <div className="flex items-center gap-2 text-amber-400">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-semibold">Zeus spins the reels...</span>
-                  </div>
-                ) : (
-                  <p className="text-amber-300/80 text-sm">Match 8+ symbols to receive Zeus&apos; blessing!</p>
-                )}
               </div>
             </div>
 
-            {/* Bottom Controls */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-3 border-t border-amber-500/30">
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                {/* Bet Controls */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => adjustBet(-10)}
-                    disabled={isSpinning || betAmount <= 1 || isFreeSpinMode}
-                    className="border-amber-500/50 hover:bg-amber-500/20 text-white h-8 w-8"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </Button>
-                  <div className="text-center min-w-[60px]">
-                    <p className="text-[10px] text-amber-300 uppercase">Bet</p>
-                    <p className="text-lg font-bold text-yellow-400">{betAmount}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => adjustBet(10)}
-                    disabled={isSpinning || betAmount >= 500 || isFreeSpinMode}
-                    className="border-amber-500/50 hover:bg-amber-500/20 text-white h-8 w-8"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </Button>
+            {/* Free Spins Banner */}
+            {isFreeSpinMode && (
+              <div className="mt-2 p-2 rounded-lg bg-gradient-to-r from-amber-600/80 via-yellow-600/80 to-orange-600/80 border border-yellow-400/50 backdrop-blur-sm shadow-lg shadow-amber-500/30">
+                <div className="flex items-center justify-center gap-3">
+                  <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+                  <span className="text-lg font-bold text-white">ZEUS FREE SPINS: {freeSpins}</span>
+                  <span className="text-base font-semibold text-yellow-300 bg-black/30 px-2 py-0.5 rounded">×{currentMultiplier}</span>
+                  <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
                 </div>
+              </div>
+            )}
+          </div>
 
-                {/* Quick Bet Buttons */}
-                <div className="hidden lg:flex gap-1">
-                  {[10, 50, 100, 250].map((amt) => (
-                    <Button
-                      key={amt}
-                      variant={betAmount === amt ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setBetAmount(amt)}
-                      disabled={isSpinning || isFreeSpinMode}
-                      className={`h-8 px-2 text-xs ${betAmount === amt 
-                        ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold border-0" 
-                        : "border-amber-500/30 hover:bg-amber-500/20 text-white"
-                      }`}
-                    >
-                      {amt}
-                    </Button>
-                  ))}
-                </div>
-
-                {/* Spin Button */}
-                <Button
-                  onClick={spin}
-                  disabled={isSpinning || (!isFreeSpinMode && balance < betAmount)}
-                  className="relative h-10 px-6 text-base font-bold bg-gradient-to-b from-amber-400 via-yellow-500 to-orange-500 hover:from-amber-300 hover:via-yellow-400 hover:to-orange-400 text-slate-900 shadow-lg shadow-amber-500/50 disabled:opacity-50 overflow-hidden group border border-yellow-300/50"
-                >
-                  <span className="relative z-10 flex items-center gap-1.5">
-                    {isSpinning ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : isFreeSpinMode ? (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        FREE
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="w-4 h-4" />
-                        SPIN
-                      </>
-                    )}
-                  </span>
-                </Button>
-
-                {/* Auto Spin */}
-                <Button
-                  onClick={toggleAutoSpin}
-                  variant={autoSpin ? "destructive" : "outline"}
-                  size="sm"
-                  className={`h-8 ${autoSpin ? "" : "border-amber-500/50 hover:bg-amber-500/20 text-white"}`}
-                  disabled={balance < betAmount || isFreeSpinMode}
-                >
-                  <Zap className={`w-3 h-3 mr-1 ${autoSpin ? "animate-pulse" : ""}`} />
-                  {autoSpin ? "STOP" : "AUTO"}
-                </Button>
+          {/* Right Panel - Zeus Character & Logo */}
+          <div className="hidden lg:flex flex-col items-center w-64 relative">
+            {/* Gates of Olympus Logo Image */}
+            <div className="relative w-full h-28 mb-2 z-10" style={{ filter: "drop-shadow(0 0 10px rgba(251, 191, 36, 0.6))" }}>
+              <Image
+                src="/symbols/olympus/logo.png"
+                alt="Gates of Olympus"
+                fill
+                className="object-contain"
+                sizes="260px"
+                priority
+              />
+            </div>
+            
+            {/* Zeus Character Image - Full height matching game grid */}
+            <div className="relative flex-1 w-full flex items-stretch justify-center overflow-visible" style={{ minHeight: "450px" }}>
+              <div className="relative w-full h-full" style={{ filter: "drop-shadow(0 0 25px rgba(251, 191, 36, 0.5))" }}>
+                <Image
+                  src="/symbols/olympus/zeus.png"
+                  alt="Zeus"
+                  fill
+                  className="object-contain object-bottom"
+                  sizes="260px"
+                  priority
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="text-center text-xs text-amber-300/70">
-          <span>RTP: 96.5% • 8+ symbols = win • 4+ ⚡ = 15 Free Spins • Multipliers up to 500x!</span>
+        {/* Bottom Controls Bar */}
+        <div className="mt-2 bg-gradient-to-r from-slate-900/95 via-slate-800/95 to-slate-900/95 rounded-xl p-3 border border-amber-500/20 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left - Volume & Info */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="hover:bg-white/10 text-white/70 h-8 w-8"
+              >
+                {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </Button>
+              
+              {/* Volume Slider */}
+              <div className="flex items-center gap-2 bg-black/30 rounded-full px-3 py-1">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={volume}
+                  onChange={(e) => setVolume(parseInt(e.target.value))}
+                  className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500"
+                />
+                <span className="text-white/60 text-xs w-6">{volume}</span>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPaytable(true)}
+                className="hover:bg-white/10 text-white/70 h-8 w-8"
+              >
+                <Info className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Center - Credit & Bet Display */}
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-[10px] text-white/50 uppercase">CREDIT</p>
+                <p className="text-lg font-bold text-white">{balance.toLocaleString("fr-CH", { minimumFractionDigits: 2 })} CHF</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] text-white/50 uppercase">MISE</p>
+                <p className="text-lg font-bold text-white">{betAmount.toFixed(2)} CHF</p>
+              </div>
+              
+              {/* Gains Display */}
+              <div className="text-center min-w-[120px]">
+                <p className="text-[10px] text-white/50 uppercase">GAINS</p>
+                <p className="text-2xl font-black text-yellow-400">
+                  {lastWin > 0 ? `${lastWin.toFixed(2)} CHF` : "0,00 CHF"}
+                </p>
+              </div>
+            </div>
+
+            {/* Right - Spin Controls */}
+            <div className="flex items-center gap-2">
+              {/* Bet Adjust */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => adjustBet(-0.5)}
+                disabled={isSpinning || betAmount <= 0.5 || isFreeSpinMode}
+                className="border-white/20 hover:bg-white/10 text-white h-10 w-10 rounded-full"
+              >
+                <Minus className="w-4 h-4" />
+              </Button>
+
+              {/* Main Spin Button */}
+              <Button
+                onClick={spin}
+                disabled={isSpinning || (!isFreeSpinMode && balance < betAmount)}
+                className="relative h-14 w-14 rounded-full bg-gradient-to-b from-slate-600 via-slate-700 to-slate-800 hover:from-slate-500 hover:via-slate-600 hover:to-slate-700 text-white shadow-lg border-2 border-slate-500/50 disabled:opacity-50"
+              >
+                {isSpinning ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-6 h-6" />
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => adjustBet(0.5)}
+                disabled={isSpinning || betAmount >= 500 || isFreeSpinMode}
+                className="border-white/20 hover:bg-white/10 text-white h-10 w-10 rounded-full"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+
+              {/* Auto Spin */}
+              <Button
+                onClick={toggleAutoSpin}
+                variant={autoSpin ? "destructive" : "outline"}
+                className={`h-10 px-4 rounded-full ${autoSpin ? "" : "border-white/20 hover:bg-white/10 text-white"}`}
+                disabled={balance < betAmount || isFreeSpinMode}
+              >
+                <RotateCcw className={`w-4 h-4 mr-1 ${autoSpin ? "animate-spin" : ""}`} />
+                AUTO
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Stats */}
+        <div className="lg:hidden mt-2 text-center text-xs text-amber-300/70">
+          <span>RTP: 96.5% • 8+ symbols = win • 4+ ⚡ = 15 Free Spins</span>
         </div>
       </div>
 
       {/* Paytable Modal */}
       {showPaytable && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900 border-amber-500/50 max-w-3xl w-full max-h-[85vh] overflow-auto">
-            <CardContent className="p-6">
+          <div className="bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-900 border border-amber-500/50 max-w-3xl w-full max-h-[85vh] overflow-auto rounded-xl">
+            <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-amber-400 flex items-center gap-2">
-                  <Crown className="w-6 h-6" /> Gates of Olympus Paytable
+                  ⚡ Gates of Olympus Paytable
                 </h2>
                 <Button variant="ghost" size="icon" onClick={() => setShowPaytable(false)} className="text-white hover:bg-white/10">
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                {Object.entries(SYMBOL_DATA).map(([symbol, info]) => (
+              <div className="grid grid-cols-5 gap-3 mb-6">
+                {Object.entries(SYMBOLS).map(([key, symbolData]) => (
                   <div
-                    key={symbol}
-                    className={`p-3 rounded-xl bg-gradient-to-br ${info.gradient} text-white text-center shadow-lg`}
+                    key={key}
+                    className="p-3 rounded-xl text-white text-center"
+                    style={{ background: `linear-gradient(135deg, ${symbolData.color}40, ${symbolData.color}20)` }}
                   >
-                    <div className="text-4xl mb-1">{symbol}</div>
-                    <p className="font-semibold text-xs">{info.name}</p>
+                    <div className="relative w-12 h-12 mx-auto mb-1">
+                      <Image
+                        src={symbolData.image}
+                        alt={symbolData.name}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <p className="text-xs">{symbolData.name}</p>
                   </div>
                 ))}
               </div>
@@ -659,7 +686,7 @@ export default function GatesOfOlympusPage() {
               <div className="space-y-4 text-sm">
                 <div className="p-4 rounded-lg bg-white/10 border border-amber-500/30">
                   <h3 className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
-                    <Gem className="w-4 h-4" /> Pay Anywhere (Cluster Pays)
+                    💎 Pay Anywhere (Cluster Pays)
                   </h3>
                   <p className="text-slate-300">
                     Match 8 or more identical symbols ANYWHERE on the 6×5 grid to win! 
@@ -689,7 +716,7 @@ export default function GatesOfOlympusPage() {
 
                 <div className="p-4 rounded-lg bg-white/10 border border-amber-500/30">
                   <h3 className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" /> Free Spins (4+ ⚡ Scatters)
+                    ⚡ Free Spins (4+ Scatters)
                   </h3>
                   <ul className="text-slate-300 space-y-1">
                     <li>• 4 Scatters = 15 Free Spins + 3x bet</li>
@@ -701,50 +728,161 @@ export default function GatesOfOlympusPage() {
                   </p>
                 </div>
 
-                <div className="p-4 rounded-lg bg-white/10 border border-amber-500/30">
-                  <h3 className="font-semibold text-slate-300 mb-2">Symbol Payouts (× Total Bet)</h3>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
-                    <div>💎🔷 Crowns: 8+ = 0.25x to 10x</div>
-                    <div>🟣🔴 Crowns: 8+ = 0.3x to 15x</div>
-                    <div>💠 Sapphire: 8+ = 1x to 30x</div>
-                    <div>✳️ Emerald: 8+ = 1.5x to 40x</div>
-                    <div>🔮 Amethyst: 8+ = 2x to 50x</div>
-                    <div>👑 Chalice: 8+ = 4x to 75x</div>
-                    <div className="col-span-2 text-amber-400 font-semibold">❤️‍🔥 Ruby Ring: 8+ = 10x to 150x</div>
-                  </div>
-                </div>
-
                 <div className="p-4 rounded-lg bg-gradient-to-r from-amber-900/50 to-yellow-900/50 border border-yellow-500/50">
                   <h3 className="font-bold text-yellow-400 text-center">⚡ MAX WIN: 5,000x YOUR STAKE ⚡</h3>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       )}
 
       {/* CSS for animations */}
       <style jsx global>{`
-        @keyframes lightning-strike {
+        /* Symbol bounce on landing */
+        @keyframes symbol-bounce {
           0% {
-            transform: translateY(-100%) scaleY(0);
-            opacity: 1;
+            transform: translateY(-10px);
           }
           50% {
-            transform: translateY(0) scaleY(1);
-            opacity: 1;
+            transform: translateY(5px);
+          }
+          75% {
+            transform: translateY(-3px);
           }
           100% {
-            transform: translateY(100vh) scaleY(0.5);
-            opacity: 0;
+            transform: translateY(0);
           }
         }
         
-        .lightning-bolt {
-          animation: lightning-strike 0.8s ease-out forwards;
+        .symbol-bounce {
+          animation: symbol-bounce 0.4s ease-out forwards;
         }
         
-        @keyframes divine-glow {
+        /* Winning symbol pop-up animation */
+        @keyframes winning-pop {
+          0% {
+            transform: scale(1);
+          }
+          25% {
+            transform: scale(1.15) translateY(-4px);
+          }
+          50% {
+            transform: scale(1.1) translateY(-2px);
+          }
+          75% {
+            transform: scale(1.12) translateY(-3px);
+          }
+          100% {
+            transform: scale(1.1) translateY(-2px);
+          }
+        }
+        
+        .winning-symbol-pop {
+          animation: winning-pop 0.5s ease-out forwards;
+        }
+        
+        /* Golden glow effect for winning symbols */
+        @keyframes winning-glow {
+          0%, 100% {
+            filter: brightness(1.2) drop-shadow(0 0 8px rgba(255, 215, 0, 0.8)) drop-shadow(0 0 16px rgba(255, 165, 0, 0.6));
+          }
+          50% {
+            filter: brightness(1.4) drop-shadow(0 0 15px rgba(255, 215, 0, 1)) drop-shadow(0 0 30px rgba(255, 165, 0, 0.8));
+          }
+        }
+        
+        .winning-symbol-glow {
+          animation: winning-glow 0.8s ease-in-out infinite;
+        }
+        
+        /* Golden background glow */
+        @keyframes glow-bg-pulse {
+          0%, 100% {
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, rgba(255, 165, 0, 0.2) 50%, transparent 70%);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+          }
+          50% {
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, rgba(255, 165, 0, 0.4) 50%, transparent 70%);
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 165, 0, 0.4);
+          }
+        }
+        
+        .winning-glow-bg {
+          animation: glow-bg-pulse 0.8s ease-in-out infinite;
+        }
+        
+        /* Golden border pulse */
+        @keyframes border-pulse {
+          0%, 100% {
+            border-color: rgba(255, 215, 0, 0.8);
+            box-shadow: inset 0 0 8px rgba(255, 215, 0, 0.4), 0 0 8px rgba(255, 215, 0, 0.4);
+          }
+          50% {
+            border-color: rgba(255, 255, 0, 1);
+            box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.8);
+          }
+        }
+        
+        .winning-border-pulse {
+          animation: border-pulse 0.6s ease-in-out infinite;
+        }
+        
+        /* Shimmer/shine effect moving across symbol */
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%) rotate(25deg);
+          }
+          100% {
+            transform: translateX(200%) rotate(25deg);
+          }
+        }
+        
+        .winning-shimmer {
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 50%;
+          height: 200%;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.1) 25%,
+            rgba(255, 255, 255, 0.4) 50%,
+            rgba(255, 255, 255, 0.1) 75%,
+            transparent 100%
+          );
+          animation: shimmer 1.5s ease-in-out infinite;
+        }
+        
+        /* Sparkle particles */
+        @keyframes sparkle {
+          0%, 100% {
+            opacity: 0;
+            transform: scale(0.5);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.2);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 1), 0 0 20px rgba(255, 165, 0, 0.8);
+          }
+        }
+        
+        .winning-sparkle {
+          color: #FFD700;
+          font-size: 10px;
+          animation: sparkle 0.8s ease-in-out infinite;
+          pointer-events: none;
+          z-index: 30;
+        }
+        
+        /* Container for winning symbols - slight elevation */
+        .winning-symbol-container {
+          transform: translateY(-2px);
+          transition: transform 0.3s ease-out;
+        }
+        
+        @keyframes olympus-glow {
           0%, 100% {
             box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
           }
@@ -753,13 +891,23 @@ export default function GatesOfOlympusPage() {
           }
         }
         
-        @keyframes zeus-pulse {
-          0%, 100% {
-            filter: brightness(1);
-          }
-          50% {
-            filter: brightness(1.5) drop-shadow(0 0 20px gold);
-          }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #ef4444;
+          cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: #ef4444;
+          cursor: pointer;
+          border: none;
         }
       `}</style>
     </main>

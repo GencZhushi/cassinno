@@ -19,7 +19,7 @@ const casinoGames: Array<{
   image?: string;
   category: "table" | "slots" | "instant";
 }> = [
-  { id: "gates-of-olympus", nameKey: "gatesOfOlympus", provider: "Pragmatic Play", isTop: true, href: "/games/gates-of-olympus", theme: "zeus", category: "slots" },
+  { id: "gates-of-olympus", nameKey: "gatesOfOlympus", provider: "Pragmatic Play", isTop: true, href: "/games/gates-of-olympus", theme: "zeus", image: "/games/gates-of-olympus.png", category: "slots" },
   { id: "book-of-dead", nameKey: "bookOfDead", provider: "Play'n GO", isTop: true, href: "/games/book-of-dead", theme: "pharaoh", category: "slots" },
   { id: "coin-strike", nameKey: "coinStrike", provider: "Playson", isTop: true, href: "/games/coin-strike", theme: "lightning", image: "/games/coin-strike.png", category: "slots" },
   { id: "sweet-bonanza", nameKey: "sweetBonanza", provider: "Pragmatic Play", isTop: true, href: "/games/sweet-bonanza", theme: "candy", category: "slots" },

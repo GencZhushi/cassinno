@@ -36,12 +36,13 @@ export default function RoulettePage() {
   const [lastWin, setLastWin] = useState<number>(0);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [ballAngle, setBallAngle] = useState(0);
-  const [ballRadius, setBallRadius] = useState(172);
+  const [ballRadius, setBallRadius] = useState(176);
   const [spinHistory, setSpinHistory] = useState<SpinHistoryItem[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWinAnimation, setShowWinAnimation] = useState(false);
   const [ballPhase, setBallPhase] = useState<'idle' | 'spinning' | 'dropping' | 'bouncing' | 'settled'>('idle');
   const [visualWheelRotation, setVisualWheelRotation] = useState(0);
+  const [ballSpeed, setBallSpeed] = useState(0);
   const animationRef = useRef<number | null>(null);
   const ballAnimationRef = useRef<number | null>(null);
   const wheelRotationRef = useRef(0);
@@ -121,155 +122,176 @@ export default function RoulettePage() {
   };
 
 
-  // Professional physics-based ball and wheel simulation
-  // Both the wheel and ball spin, with the ball landing in the pocket at the pointer
+  // ═══════════════════════════════════════════════════════════════
+  // SUPER-REALISTIC PHYSICS ENGINE
+  // Models: friction, gravity spiral, deflector collisions, pocket bouncing
+  // ═══════════════════════════════════════════════════════════════
   const animateBallPhysics = (
-    _winningNumberIndex: number, 
+    _winningNumberIndex: number,
     wheelStartRotation: number,
-    wheelEndRotation: number, 
+    wheelEndRotation: number,
     onComplete: () => void
   ) => {
     const DEGREES_PER_SLOT = 360 / 37;
-    // Ball should land at the center of a pocket, offset by half a slot
     const pocketCenterOffset = DEGREES_PER_SLOT / 2;
-    // Physics constants - scaled for 420px wheel
-    const TRACK_RADIUS = 172;           // Ball track (outer rim)
-    const POCKET_RADIUS = 108;          // Where pockets are on the wheel
-    
-    // Ball state - starts at random position on the track
-    let ballScreenAngle = Math.random() * 360;
+
+    // Physical dimensions (relative to 460px container)
+    const TRACK_RADIUS = 176;
+    const DEFLECTOR_RADIUS = 152;
+    const POCKET_RADIUS = 110;
+
+    // Ball state – counter-clockwise spin (opposite to wheel, like real roulette)
+    let angle = Math.random() * 360;
     let radius = TRACK_RADIUS;
-    let ballVelocity = 600 + Math.random() * 300; // Ball spins fast
-    let radialVelocity = 0;
-    
-    // Timing
-    const startTime = Date.now();
-    const SPIN_DURATION = 3000;      // Ball spins on outer track
-    const DROP_DURATION = 1500;      // Ball drops to pockets
-    const SETTLE_DURATION = 2000;    // Ball bounces and settles
-    const TOTAL_DURATION = SPIN_DURATION + DROP_DURATION + SETTLE_DURATION;
-    
+    let angularVel = -(580 + Math.random() * 220); // deg/s, negative = CCW
+    let radialVel = 0;
+
+    // Deflector collision state
+    const NUM_DEFLECTORS = 8;
+    const deflectorAngles = Array.from({ length: NUM_DEFLECTORS }, (_, i) => i * (360 / NUM_DEFLECTORS));
+    let lastDeflectorIdx = -1;
+    let deflectorCooldown = 0;
+
+    // Bounce state
+    let bounceEnergy = 1.0;
+    let pocketBounceCount = 0;
+    const maxPocketBounces = 3 + Math.floor(Math.random() * 4);
+
+    // Randomised phase durations for variety
+    const SPIN_END = 2600 + Math.random() * 500;
+    const DROP_END = SPIN_END + 1600 + Math.random() * 500;
+    const BOUNCE_END = DROP_END + 2000 + Math.random() * 400;
+    const WHEEL_ANIM_DURATION = 7000;
+
+    const startTime = performance.now();
     let lastTime = startTime;
-    let phase: 'spinning' | 'dropping' | 'bouncing' | 'settled' = 'spinning';
-    let bounceCount = 0;
-    const maxBounces = 3 + Math.floor(Math.random() * 3);
-    
-    const animate = () => {
-      const now = Date.now();
+
+    const animate = (now: number) => {
       const elapsed = now - startTime;
-      const dt = Math.min((now - lastTime) / 16.67, 2); // Normalize to ~60fps
+      const dt = Math.min((now - lastTime) / 1000, 0.04); // seconds, cap at 40ms
       lastTime = now;
-      
-      // Calculate wheel's current rotation using same easing as CSS
-      const wheelProgress = Math.min(elapsed / 6500, 1);
-      const wheelEase = 1 - Math.pow(1 - wheelProgress, 3);
-      const currentWheelRotation = wheelStartRotation + (wheelEndRotation - wheelStartRotation) * wheelEase;
-      wheelRotationRef.current = currentWheelRotation;
-      
-      // Phase transitions
-      if (elapsed < SPIN_DURATION) {
+
+      // Wheel interpolation (cubic ease-out)
+      const wp = Math.min(elapsed / WHEEL_ANIM_DURATION, 1);
+      const wheelEase = 1 - Math.pow(1 - wp, 3);
+      const currentWheelRot = wheelStartRotation + (wheelEndRotation - wheelStartRotation) * wheelEase;
+      wheelRotationRef.current = currentWheelRot;
+
+      let phase: 'spinning' | 'dropping' | 'bouncing' | 'settled';
+
+      if (elapsed < SPIN_END) {
+        // ── Phase 1: SPINNING on outer ball track ──
         phase = 'spinning';
-      } else if (elapsed < SPIN_DURATION + DROP_DURATION) {
+        const speedRatio = Math.abs(angularVel) / 600;
+        const friction = 0.986 - 0.006 * (1 - speedRatio);
+        angularVel *= Math.pow(friction, dt * 60);
+        angle += angularVel * dt;
+
+        // Subtle track vibration
+        const vibAmp = 1.2 * (Math.abs(angularVel) / 600);
+        radius = TRACK_RADIUS + Math.sin(elapsed * 0.015) * vibAmp;
+        setBallSpeed(Math.abs(angularVel));
+
+      } else if (elapsed < DROP_END) {
+        // ── Phase 2: SPIRAL DESCENT (gravity pulls ball inward) ──
         phase = 'dropping';
-      } else if (elapsed < TOTAL_DURATION) {
-        phase = 'bouncing';
-      } else {
-        phase = 'settled';
-      }
-      
-      setBallPhase(phase);
-      
-      if (phase === 'spinning') {
-        // Ball spins on outer track, slowing down gradually
-        const spinProgress = elapsed / SPIN_DURATION;
-        const friction = 0.994 - spinProgress * 0.003;
-        ballVelocity *= Math.pow(friction, dt);
-        ballScreenAngle += ballVelocity * dt * 0.016;
-        radius = TRACK_RADIUS;
-        
-      } else if (phase === 'dropping') {
-        // Ball drops from track toward pockets
-        const dropProgress = (elapsed - SPIN_DURATION) / DROP_DURATION;
-        const dropEase = 1 - Math.pow(1 - dropProgress, 2);
-        
-        // Continue slowing rotation
-        ballVelocity *= Math.pow(0.985, dt);
-        ballScreenAngle += ballVelocity * dt * 0.016;
-        
-        // Spiral inward
-        radius = TRACK_RADIUS - (TRACK_RADIUS - POCKET_RADIUS - 5) * dropEase;
-        
-        // Add some wobble for realism
-        radius += Math.sin(elapsed * 0.02) * 3 * (1 - dropProgress);
-        
-      } else if (phase === 'bouncing') {
-        // Ball settles smoothly at the pointer (top = 0 degrees)
-        const bounceProgress = (elapsed - SPIN_DURATION - DROP_DURATION) / SETTLE_DURATION;
-        
-        // Normalize current angle to 0-360 range
-        const normalizedAngle = ((ballScreenAngle % 360) + 360) % 360;
-        
-        // Target is 0 degrees (top) - find shortest path
-        let angleDiff = -normalizedAngle;
-        if (angleDiff < -180) angleDiff += 360;
-        if (angleDiff > 180) angleDiff -= 360;
-        
-        // Early bounces for realism
-        if (bounceCount < maxBounces && bounceProgress < 0.4) {
-          if (Math.random() < 0.025 * dt) {
-            bounceCount++;
-            ballVelocity += (Math.random() - 0.5) * 25;
-            radialVelocity = (Math.random() - 0.5) * 4;
+        const dropProgress = (elapsed - SPIN_END) / (DROP_END - SPIN_END);
+
+        angularVel *= Math.pow(0.978, dt * 60);
+        angle += angularVel * dt;
+
+        // Gravity-driven inward spiral
+        const gravityPull = 100 * Math.pow(dropProgress, 0.4);
+        radialVel -= gravityPull * dt;
+        radialVel *= Math.pow(0.91, dt * 60);
+        radius += radialVel * dt;
+        radius = Math.max(POCKET_RADIUS - 3, Math.min(TRACK_RADIUS, radius));
+
+        // ── Deflector collision detection ──
+        deflectorCooldown -= dt;
+        if (radius < DEFLECTOR_RADIUS + 10 && radius > DEFLECTOR_RADIUS - 10 && deflectorCooldown <= 0) {
+          const normAngle = ((angle % 360) + 360) % 360;
+          for (let d = 0; d < NUM_DEFLECTORS; d++) {
+            const diff = Math.abs(normAngle - deflectorAngles[d]);
+            const angleDist = Math.min(diff, 360 - diff);
+            if (angleDist < 12 && lastDeflectorIdx !== d) {
+              lastDeflectorIdx = d;
+              deflectorCooldown = 0.18;
+              const bounceDir = Math.random() > 0.5 ? 1 : -1;
+              angularVel += bounceDir * (25 + Math.random() * 45);
+              radialVel = -(35 + Math.random() * 25);
+              radius -= 5;
+              break;
+            }
           }
         }
-        
-        // Smooth easing toward pocket center
-        const targetAngleEase = pocketCenterOffset;
-        const currentNormEase = ((ballScreenAngle % 360) + 360) % 360;
-        let targetDiff = targetAngleEase - currentNormEase;
+
+        // Wobble decreases as ball drops
+        radius += Math.sin(elapsed * 0.02) * 3 * (1 - dropProgress);
+        setBallSpeed(Math.abs(angularVel));
+
+      } else if (elapsed < BOUNCE_END) {
+        // ── Phase 3: POCKET BOUNCING ──
+        phase = 'bouncing';
+        const bounceProgress = (elapsed - DROP_END) / (BOUNCE_END - DROP_END);
+
+        angularVel *= Math.pow(0.925, dt * 60);
+        angle += angularVel * dt;
+        bounceEnergy *= Math.pow(0.88, dt * 60);
+
+        // Pocket wall bouncing oscillation
+        const bounceFreq = 5 + bounceProgress * 10;
+        const bounceAmp = 8 * bounceEnergy;
+        radius = POCKET_RADIUS + Math.sin(elapsed * bounceFreq * 0.001) * bounceAmp;
+
+        // Random pocket hops
+        if (pocketBounceCount < maxPocketBounces && bounceProgress < 0.55) {
+          if (Math.random() < 0.007 * dt * 60) {
+            pocketBounceCount++;
+            const hopDir = Math.random() > 0.5 ? 1 : -1;
+            angularVel += hopDir * DEGREES_PER_SLOT * (0.5 + Math.random() * 1.5) * 2.5;
+            bounceEnergy *= 0.75;
+            radius += 6;
+          }
+        }
+
+        // Converge toward target angle (pointer = top)
+        const normAngle = ((angle % 360) + 360) % 360;
+        let targetDiff = pocketCenterOffset - normAngle;
         if (targetDiff < -180) targetDiff += 360;
         if (targetDiff > 180) targetDiff -= 360;
-        const easeStrength = Math.pow(bounceProgress, 0.5) * 0.15;
-        ballScreenAngle += targetDiff * easeStrength;
-        
-        // Apply remaining velocity with heavy damping
-        ballVelocity *= Math.pow(0.88, dt);
-        ballScreenAngle += ballVelocity * dt * 0.008;
-        
-        // Radial settling - smooth approach to pocket
-        radialVelocity *= 0.8;
-        radialVelocity += (POCKET_RADIUS - radius) * 0.12;
-        radius += radialVelocity * dt * 0.3;
-        radius = Math.max(POCKET_RADIUS - 4, Math.min(POCKET_RADIUS + 4, radius));
-        
-        // Near the end, ensure we're very close to target (pocket center)
-        if (bounceProgress > 0.9) {
-          const finalTargetAngle = pocketCenterOffset;
-          const finalCurrentNorm = ((ballScreenAngle % 360) + 360) % 360;
-          let toDiff = finalTargetAngle - finalCurrentNorm;
-          if (toDiff < -180) toDiff += 360;
-          if (toDiff > 180) toDiff -= 360;
-          ballScreenAngle += toDiff * 0.3;
-          radius += (POCKET_RADIUS - radius) * 0.3;
+
+        const converge = Math.pow(bounceProgress, 1.8) * 0.1;
+        angle += targetDiff * converge;
+
+        if (bounceProgress > 0.8) {
+          angle += targetDiff * 0.2;
+          radius += (POCKET_RADIUS - radius) * 0.15;
         }
-        
+        if (bounceProgress > 0.92) {
+          angle += targetDiff * 0.4;
+          radius += (POCKET_RADIUS - radius) * 0.35;
+        }
+        setBallSpeed(Math.abs(angularVel) * bounceEnergy);
+
       } else {
-        // Settled - ball lands at center of pocket (half slot offset from divider)
+        // ── Phase 4: SETTLED in pocket ──
         setBallAngle(pocketCenterOffset);
         setBallRadius(POCKET_RADIUS);
         setBallPhase('settled');
+        setBallSpeed(0);
         onComplete();
         return;
       }
-      
-      // Update state - both ball angle and wheel visual rotation
-      setBallAngle(ballScreenAngle);
-      setBallRadius(radius);
-      setVisualWheelRotation(currentWheelRotation);
-      
+
+      setBallPhase(phase);
+      setBallAngle(angle);
+      setBallRadius(Math.max(POCKET_RADIUS - 4, Math.min(TRACK_RADIUS + 2, radius)));
+      setVisualWheelRotation(currentWheelRot);
+
       ballAnimationRef.current = requestAnimationFrame(animate);
     };
-    
+
     setBallPhase('spinning');
     ballAnimationRef.current = requestAnimationFrame(animate);
   };
@@ -354,222 +376,259 @@ export default function RoulettePage() {
     }
   };
 
-  // Roulette Wheel Component with professional ball animation
+  // ═══════════════════════════════════════════════════════════════
+  // ROULETTE WHEEL – Premium visual design with ball effects
+  // ═══════════════════════════════════════════════════════════════
   const RouletteWheel = () => {
     const segmentAngle = 360 / 37;
-    
-    // Calculate ball position - the ball moves independently of the wheel
-    // ballAngle is the screen angle (0 = top, clockwise positive)
+
+    // Ball screen position
     const ballAngleRad = (ballAngle * Math.PI) / 180;
     const ballX = Math.sin(ballAngleRad) * ballRadius;
     const ballY = -Math.cos(ballAngleRad) * ballRadius;
-    
-    // Ball visual effects based on phase - larger ball for bigger wheel
-    const getBallStyles = () => {
-      const baseStyles = "rounded-full bg-gradient-to-br from-gray-100 via-white to-gray-300 border border-gray-200";
-      const shadowBase = "shadow-[0_3px_10px_rgba(0,0,0,0.7),inset_0_-3px_6px_rgba(0,0,0,0.2),0_0_15px_rgba(255,255,255,0.4)]";
-      
-      switch (ballPhase) {
-        case 'spinning':
-          return `${baseStyles} ${shadowBase} w-5 h-5`;
-        case 'dropping':
-          return `${baseStyles} ${shadowBase} w-5 h-5`;
-        case 'bouncing':
-          return `${baseStyles} ${shadowBase} w-[18px] h-[18px]`;
-        case 'settled':
-          return `${baseStyles} shadow-[0_2px_6px_rgba(0,0,0,0.6),inset_0_-2px_4px_rgba(0,0,0,0.2)] w-[18px] h-[18px]`;
-        default:
-          return `${baseStyles} ${shadowBase} w-5 h-5`;
-      }
-    };
-    
+
+    const isMoving = ballPhase !== 'idle' && ballPhase !== 'settled';
+    const isMovingFast = ballPhase === 'spinning';
+    const speedNorm = Math.min(ballSpeed / 500, 1);
+
+    // Ball size varies by phase (3D depth illusion)
+    const bSize = ballPhase === 'spinning' ? 18 : ballPhase === 'dropping' ? 17 : ballPhase === 'bouncing' ? 16 : ballPhase === 'settled' ? 15 : 18;
+
     return (
-      <div className="relative w-[460px] h-[460px] mx-auto" style={{ aspectRatio: '1 / 1' }}>
-        {/* Outer decorative ring with metallic effect - centered in the larger container */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-700 p-1 shadow-[0_0_40px_rgba(234,179,8,0.5)]">
-          {/* Ball track ring - the brown wooden track where ball spins */}
-          <div className="w-full h-full rounded-full bg-gradient-to-br from-amber-900 via-amber-800 to-amber-900 p-2 relative">
-            {/* Ball track groove - visible ring where ball travels */}
-            <div className="absolute inset-2 rounded-full border-[3px] border-amber-950/60 shadow-[inset_0_2px_8px_rgba(0,0,0,0.4)]" />
-            
-            {/* Deflectors/diamonds on the track - scaled for 420px wheel */}
-            {[...Array(8)].map((_, i) => {
-              const angle = (i * 45 * Math.PI) / 180;
-              const x = Math.sin(angle) * 165;
-              const y = -Math.cos(angle) * 165;
-              return (
-                <div
-                  key={`deflector-${i}`}
-                  className="absolute w-3 h-4 bg-gradient-to-b from-yellow-400 to-yellow-600 z-[5]"
-                  style={{
-                    left: `calc(50% + ${x}px - 6px)`,
-                    top: `calc(50% + ${y}px - 8px)`,
-                    transform: `rotate(${i * 45}deg)`,
-                    clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)',
-                  }}
-                />
-              );
-            })}
-            
-            {/* Spinning wheel - uses visualWheelRotation for smooth animation */}
-            <div 
-              className="w-full h-full rounded-full relative overflow-hidden shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]"
-              style={{ 
-                transform: `rotate(${isSpinning ? visualWheelRotation : wheelRotation}deg)`,
-              }}
-            >
-              {/* SVG Wheel segments - improved design */}
-              <svg viewBox="0 0 200 200" className="w-full h-full">
-                <defs>
-                  {/* Gradient for pocket depth effect */}
-                  <radialGradient id="pocketShadow" cx="50%" cy="50%" r="50%">
-                    <stop offset="70%" stopColor="transparent" />
-                    <stop offset="100%" stopColor="rgba(0,0,0,0.3)" />
-                  </radialGradient>
-                </defs>
-                
-                {WHEEL_NUMBERS.map((num, i) => {
-                  const startAngle = i * segmentAngle - 90;
-                  const endAngle = startAngle + segmentAngle;
-                  const startRad = (startAngle * Math.PI) / 180;
-                  const endRad = (endAngle * Math.PI) / 180;
-                  const midRad = ((startAngle + segmentAngle / 2) * Math.PI) / 180;
-                  
-                  const outerRadius = 100;
-                  const innerRadius = 38;
-                  const textRadius = 72;
-                  
-                  const x1 = 100 + outerRadius * Math.cos(startRad);
-                  const y1 = 100 + outerRadius * Math.sin(startRad);
-                  const x2 = 100 + outerRadius * Math.cos(endRad);
-                  const y2 = 100 + outerRadius * Math.sin(endRad);
-                  const x3 = 100 + innerRadius * Math.cos(endRad);
-                  const y3 = 100 + innerRadius * Math.sin(endRad);
-                  const x4 = 100 + innerRadius * Math.cos(startRad);
-                  const y4 = 100 + innerRadius * Math.sin(startRad);
-                  
-                  const textX = 100 + textRadius * Math.cos(midRad);
-                  const textY = 100 + textRadius * Math.sin(midRad);
-                  
-                  const color = getNumberColor(num);
-                  const fillColor = color === "green" ? "#15803d" : color === "red" ? "#b91c1c" : "#18181b";
-                  const highlightColor = color === "green" ? "#22c55e" : color === "red" ? "#ef4444" : "#3f3f46";
-                  
-                  // Pocket dividers - golden separators
-                  const dividerX1 = 100 + (outerRadius - 1) * Math.cos(startRad);
-                  const dividerY1 = 100 + (outerRadius - 1) * Math.sin(startRad);
-                  const dividerX2 = 100 + (innerRadius + 2) * Math.cos(startRad);
-                  const dividerY2 = 100 + (innerRadius + 2) * Math.sin(startRad);
-                  
-                  return (
-                    <g key={num}>
-                      {/* Main pocket segment */}
-                      <path
-                        d={`M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 0 0 ${x4} ${y4} Z`}
-                        fill={fillColor}
-                        stroke={highlightColor}
-                        strokeWidth="0.5"
-                      />
-                      {/* Golden pocket divider */}
-                      <line
-                        x1={dividerX1}
-                        y1={dividerY1}
-                        x2={dividerX2}
-                        y2={dividerY2}
-                        stroke="#eab308"
-                        strokeWidth="1.2"
-                      />
-                      {/* Number with better visibility */}
-                      <text
-                        x={textX}
-                        y={textY}
-                        fill="white"
-                        fontSize="9"
-                        fontWeight="bold"
-                        fontFamily="Arial, sans-serif"
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        transform={`rotate(${startAngle + segmentAngle / 2 + 90}, ${textX}, ${textY})`}
-                        stroke="rgba(0,0,0,0.5)"
-                        strokeWidth="0.5"
-                        paintOrder="stroke"
-                      >
-                        {num}
-                      </text>
-                    </g>
-                  );
-                })}
-                
-                {/* Center hub */}
-                <circle cx="100" cy="100" r="35" fill="url(#hubGradient)" stroke="#ca8a04" strokeWidth="2" />
-                <circle cx="100" cy="100" r="25" fill="url(#innerHubGradient)" stroke="#eab308" strokeWidth="1" />
-                <circle cx="100" cy="100" r="12" fill="#fbbf24" />
-                
-                {/* Spokes on center hub */}
-                {[...Array(8)].map((_, i) => {
-                  const angle = (i * 45 * Math.PI) / 180;
-                  return (
-                    <line
-                      key={`spoke-${i}`}
-                      x1={100 + 12 * Math.cos(angle)}
-                      y1={100 + 12 * Math.sin(angle)}
-                      x2={100 + 24 * Math.cos(angle)}
-                      y2={100 + 24 * Math.sin(angle)}
-                      stroke="#ca8a04"
-                      strokeWidth="2"
-                    />
-                  );
-                })}
-                
-                {/* Gradients */}
-                <defs>
-                  <radialGradient id="hubGradient" cx="30%" cy="30%">
-                    <stop offset="0%" stopColor="#92400e" />
-                    <stop offset="100%" stopColor="#451a03" />
-                  </radialGradient>
-                  <radialGradient id="innerHubGradient" cx="30%" cy="30%">
-                    <stop offset="0%" stopColor="#fbbf24" />
-                    <stop offset="100%" stopColor="#b45309" />
-                  </radialGradient>
-                </defs>
-              </svg>
+      <div className="relative w-[480px] h-[480px] mx-auto select-none" style={{ aspectRatio: '1 / 1' }}>
+        {/* Ambient glow underneath wheel */}
+        <div className="absolute inset-8 rounded-full opacity-40 blur-3xl"
+          style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.35) 0%, transparent 70%)' }} />
+
+        {/* Outer chrome/gold ring – conic gradient for metallic look */}
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] h-[440px] rounded-full p-[5px] shadow-[0_0_50px_rgba(212,175,55,0.35),0_0_100px_rgba(212,175,55,0.12)]"
+          style={{ background: 'conic-gradient(from 0deg, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914)' }}
+        >
+          {/* Inner chrome ring */}
+          <div className="w-full h-full rounded-full p-[3px]"
+            style={{ background: 'conic-gradient(from 45deg, #6B5210, #C4A135, #E8D48B, #C4A135, #6B5210, #C4A135, #E8D48B, #C4A135, #6B5210)' }}>
+
+            {/* Ball track – dark mahogany wood */}
+            <div className="w-full h-full rounded-full bg-gradient-to-br from-[#2c1810] via-[#3d2317] to-[#1e0f09] p-3 relative shadow-[inset_0_0_30px_rgba(0,0,0,0.7)]">
+              {/* Ball track groove */}
+              <div className="absolute inset-4 rounded-full shadow-[inset_0_2px_12px_rgba(0,0,0,0.7),0_1px_3px_rgba(210,170,50,0.15)]"
+                style={{ border: '2px solid rgba(30,15,9,0.8)' }} />
+
+              {/* Track surface highlight */}
+              <div className="absolute inset-5 rounded-full opacity-20 pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 35% 25%, rgba(255,220,150,0.3) 0%, transparent 50%)' }} />
+
+              {/* Deflectors/diamonds on the track */}
+              {[...Array(8)].map((_, i) => {
+                const ang = (i * 45 * Math.PI) / 180;
+                const dx = Math.sin(ang) * 168;
+                const dy = -Math.cos(ang) * 168;
+                return (
+                  <div key={`deflector-${i}`} className="absolute z-[5]"
+                    style={{ left: `calc(50% + ${dx}px - 7px)`, top: `calc(50% + ${dy}px - 9px)`, transform: `rotate(${i * 45}deg)` }}>
+                    <div className="w-[14px] h-[18px] relative">
+                      <div className="absolute inset-0 bg-gradient-to-b from-[#F5E6A3] via-[#D4AF37] to-[#8B6914]"
+                        style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }} />
+                      <div className="absolute inset-[1px] bg-gradient-to-b from-[#FCF3D1] via-[#E8C84A] to-[#A07D1C] opacity-80"
+                        style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* ── Spinning wheel rotor ── */}
+              <div
+                className="absolute inset-6 rounded-full overflow-hidden shadow-[inset_0_0_40px_rgba(0,0,0,0.6)]"
+                style={{ transform: `rotate(${isSpinning ? visualWheelRotation : wheelRotation}deg)` }}
+              >
+                <svg viewBox="0 0 200 200" className="w-full h-full">
+                  <defs>
+                    <radialGradient id="pocketDepth" cx="50%" cy="50%" r="50%">
+                      <stop offset="60%" stopColor="transparent" />
+                      <stop offset="100%" stopColor="rgba(0,0,0,0.4)" />
+                    </radialGradient>
+                    <radialGradient id="hubGrad" cx="35%" cy="30%">
+                      <stop offset="0%" stopColor="#5a3a1a" />
+                      <stop offset="100%" stopColor="#2a1a08" />
+                    </radialGradient>
+                    <radialGradient id="innerHubGrad" cx="35%" cy="30%">
+                      <stop offset="0%" stopColor="#fcd34d" />
+                      <stop offset="100%" stopColor="#a16207" />
+                    </radialGradient>
+                    <radialGradient id="centerGem" cx="35%" cy="30%">
+                      <stop offset="0%" stopColor="#fef08a" />
+                      <stop offset="50%" stopColor="#eab308" />
+                      <stop offset="100%" stopColor="#a16207" />
+                    </radialGradient>
+                  </defs>
+
+                  {WHEEL_NUMBERS.map((num, i) => {
+                    const startAngle = i * segmentAngle - 90;
+                    const endAngle = startAngle + segmentAngle;
+                    const startRad = (startAngle * Math.PI) / 180;
+                    const endRad = (endAngle * Math.PI) / 180;
+                    const midRad = ((startAngle + segmentAngle / 2) * Math.PI) / 180;
+
+                    const outerR = 100;
+                    const innerR = 38;
+                    const textR = 73;
+
+                    const x1 = 100 + outerR * Math.cos(startRad);
+                    const y1 = 100 + outerR * Math.sin(startRad);
+                    const x2 = 100 + outerR * Math.cos(endRad);
+                    const y2 = 100 + outerR * Math.sin(endRad);
+                    const x3 = 100 + innerR * Math.cos(endRad);
+                    const y3 = 100 + innerR * Math.sin(endRad);
+                    const x4 = 100 + innerR * Math.cos(startRad);
+                    const y4 = 100 + innerR * Math.sin(startRad);
+                    const textX = 100 + textR * Math.cos(midRad);
+                    const textY = 100 + textR * Math.sin(midRad);
+
+                    const color = getNumberColor(num);
+                    const fillColor = color === "green" ? "#15803d" : color === "red" ? "#991b1b" : "#18181b";
+                    const highlightColor = color === "green" ? "#22c55e" : color === "red" ? "#dc2626" : "#3f3f46";
+
+                    const fretX1 = 100 + (outerR - 1) * Math.cos(startRad);
+                    const fretY1 = 100 + (outerR - 1) * Math.sin(startRad);
+                    const fretX2 = 100 + (innerR + 1) * Math.cos(startRad);
+                    const fretY2 = 100 + (innerR + 1) * Math.sin(startRad);
+
+                    return (
+                      <g key={num}>
+                        <path d={`M ${x1} ${y1} A ${outerR} ${outerR} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 0 0 ${x4} ${y4} Z`}
+                          fill={fillColor} stroke={highlightColor} strokeWidth="0.3" opacity="0.95" />
+                        <path d={`M ${x1} ${y1} A ${outerR} ${outerR} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 0 0 ${x4} ${y4} Z`}
+                          fill="url(#pocketDepth)" opacity="0.3" />
+                        <line x1={fretX1} y1={fretY1} x2={fretX2} y2={fretY2} stroke="#D4AF37" strokeWidth="1.4" />
+                        <line x1={fretX1} y1={fretY1} x2={fretX2} y2={fretY2} stroke="#F5E6A3" strokeWidth="0.4" opacity="0.5" />
+                        <text x={textX} y={textY} fill="white" fontSize="8.5" fontWeight="bold"
+                          fontFamily="'Arial Black', Arial, sans-serif" textAnchor="middle" dominantBaseline="middle"
+                          transform={`rotate(${startAngle + segmentAngle / 2 + 90}, ${textX}, ${textY})`}
+                          stroke="rgba(0,0,0,0.6)" strokeWidth="0.6" paintOrder="stroke" letterSpacing="0.5">
+                          {num}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  <circle cx="100" cy="100" r="99" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="2" />
+
+                  {/* Center hub */}
+                  <circle cx="100" cy="100" r="36" fill="url(#hubGrad)" stroke="#B8860B" strokeWidth="2.5" />
+                  <circle cx="100" cy="100" r="27" fill="url(#innerHubGrad)" stroke="#D4AF37" strokeWidth="1.5" />
+                  <circle cx="100" cy="100" r="14" fill="url(#centerGem)" stroke="#F5E6A3" strokeWidth="0.5" />
+
+                  {[...Array(8)].map((_, i) => {
+                    const ang = (i * 45 * Math.PI) / 180;
+                    return (
+                      <g key={`spoke-${i}`}>
+                        <line x1={100 + 14 * Math.cos(ang)} y1={100 + 14 * Math.sin(ang)}
+                          x2={100 + 26 * Math.cos(ang)} y2={100 + 26 * Math.sin(ang)}
+                          stroke="#B8860B" strokeWidth="2.5" strokeLinecap="round" />
+                        <line x1={100 + 15 * Math.cos(ang)} y1={100 + 15 * Math.sin(ang)}
+                          x2={100 + 25 * Math.cos(ang)} y2={100 + 25 * Math.sin(ang)}
+                          stroke="#F5E6A3" strokeWidth="0.7" opacity="0.6" strokeLinecap="round" />
+                      </g>
+                    );
+                  })}
+
+                  <circle cx="100" cy="100" r="5" fill="#fef08a" opacity="0.8" />
+                  <circle cx="98" cy="98" r="2" fill="white" opacity="0.4" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
-        
-        {/* Ball - positioned absolutely in screen space, OUTSIDE the spinning wheel */}
-        <div 
-          className="absolute pointer-events-none z-20"
+
+        {/* ── Ball glow (soft ambient light around ball) ── */}
+        {isMoving && (
+          <div className="absolute pointer-events-none z-[18]"
+            style={{ left: '50%', top: '50%', transform: `translate(calc(-50% + ${ballX}px), calc(-50% + ${ballY}px))` }}>
+            <div className="rounded-full" style={{
+              width: bSize + 16, height: bSize + 16,
+              marginLeft: -(bSize + 16) / 2, marginTop: -(bSize + 16) / 2,
+              background: `radial-gradient(circle, rgba(255,255,255,${0.12 + speedNorm * 0.15}) 0%, transparent 70%)`,
+              filter: 'blur(4px)',
+            }} />
+          </div>
+        )}
+
+        {/* ── Ball shadow ── */}
+        {isMoving && (
+          <div className="absolute pointer-events-none z-[17]"
+            style={{ left: '50%', top: '50%', transform: `translate(calc(-50% + ${ballX + 3}px), calc(-50% + ${ballY + 3}px))` }}>
+            <div className="rounded-full bg-black/25" style={{
+              width: bSize + 2, height: bSize + 2,
+              marginLeft: -(bSize + 2) / 2, marginTop: -(bSize + 2) / 2,
+              filter: 'blur(3px)',
+            }} />
+          </div>
+        )}
+
+        {/* ── Motion trail (only when spinning fast) ── */}
+        {isMovingFast && speedNorm > 0.3 && (
+          <>
+            {[1, 2, 3].map(t => {
+              const trailAng = ballAngle + t * 9;
+              const trailRad = (trailAng * Math.PI) / 180;
+              const tx = Math.sin(trailRad) * ballRadius;
+              const ty = -Math.cos(trailRad) * ballRadius;
+              return (
+                <div key={`trail-${t}`} className="absolute pointer-events-none z-[16]"
+                  style={{ left: '50%', top: '50%', transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px))` }}>
+                  <div className="rounded-full bg-white" style={{
+                    width: bSize - t * 2, height: bSize - t * 2,
+                    marginLeft: -(bSize - t * 2) / 2, marginTop: -(bSize - t * 2) / 2,
+                    opacity: (0.22 - t * 0.06) * speedNorm,
+                    filter: `blur(${t * 1.5}px)`,
+                  }} />
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* ── Main ball ── */}
+        <div className="absolute pointer-events-none z-20"
           style={{
-            left: '50%',
-            top: '50%',
+            left: '50%', top: '50%',
             transform: `translate(calc(-50% + ${ballX}px), calc(-50% + ${ballY}px))`,
-            transition: ballPhase === 'settled' ? 'transform 0.1s ease-out' : 'none',
-          }}
-        >
-          <div className={getBallStyles()} />
+            transition: ballPhase === 'settled' ? 'transform 0.15s ease-out' : 'none',
+          }}>
+          <div className="rounded-full" style={{
+            width: bSize, height: bSize,
+            marginLeft: -bSize / 2, marginTop: -bSize / 2,
+            background: 'radial-gradient(ellipse at 35% 25%, #ffffff 0%, #f0f0f0 30%, #d4d4d4 60%, #a0a0a0 100%)',
+            boxShadow: ballPhase === 'settled'
+              ? '0 2px 6px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.15)'
+              : `0 3px 10px rgba(0,0,0,0.6), inset 0 -3px 6px rgba(0,0,0,0.2), 0 0 ${8 + speedNorm * 12}px rgba(255,255,255,${0.2 + speedNorm * 0.3})`,
+            filter: isMovingFast && speedNorm > 0.5 ? `blur(${speedNorm * 0.7}px)` : 'none',
+          }} />
         </div>
 
-        {/* Pointer/Diamond marker at top - larger for 420px wheel */}
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20">
-          <div className="w-5 h-8 bg-gradient-to-b from-yellow-400 to-yellow-600 shadow-lg border-x border-yellow-300" 
-               style={{ clipPath: 'polygon(50% 100%, 0% 0%, 100% 0%)' }} />
+        {/* ── Pointer / marker diamond ── */}
+        <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-30">
+          <div className="relative w-6 h-10">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#F5E6A3] via-[#D4AF37] to-[#8B6914] shadow-[0_4px_15px_rgba(0,0,0,0.5)]"
+              style={{ clipPath: 'polygon(50% 100%, 0% 0%, 100% 0%)' }} />
+            <div className="absolute inset-[2px] bg-gradient-to-b from-[#FCF3D1] via-[#E8C84A] to-[#A07D1C] opacity-70"
+              style={{ clipPath: 'polygon(50% 100%, 0% 0%, 100% 0%)' }} />
+          </div>
         </div>
-        
-        {/* Decorative outer dots - scaled for 420px wheel */}
-        {[...Array(24)].map((_, i) => {
-          const angle = (i * 15 * Math.PI) / 180;
-          const x = Math.sin(angle) * 216;
-          const y = -Math.cos(angle) * 216;
+
+        {/* Decorative outer studs */}
+        {[...Array(36)].map((_, i) => {
+          const ang = (i * 10 * Math.PI) / 180;
+          const sx = Math.sin(ang) * 228;
+          const sy = -Math.cos(ang) * 228;
           return (
-            <div
-              key={i}
-              className="absolute w-2 h-2 rounded-full bg-yellow-500/70"
+            <div key={`stud-${i}`} className="absolute w-[5px] h-[5px] rounded-full"
               style={{
-                left: `calc(50% + ${x}px - 4px)`,
-                top: `calc(50% + ${y}px - 4px)`,
-              }}
-            />
+                left: `calc(50% + ${sx}px - 2.5px)`, top: `calc(50% + ${sy}px - 2.5px)`,
+                background: i % 3 === 0 ? 'radial-gradient(circle at 30% 30%, #F5E6A3, #8B6914)' : 'radial-gradient(circle at 30% 30%, #D4AF37, #6B5210)',
+                opacity: 0.6,
+              }} />
           );
         })}
       </div>
@@ -578,7 +637,7 @@ export default function RoulettePage() {
 
   // Betting Table
   const BettingTable = () => (
-    <div className="relative bg-gradient-to-br from-green-800 via-green-900 to-green-950 rounded-2xl p-4 border-4 border-amber-700 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5)]">
+    <div className="relative bg-gradient-to-br from-green-800 via-green-900 to-green-950 rounded-2xl p-4 border-4 border-amber-700/80 shadow-[inset_0_2px_20px_rgba(0,0,0,0.5),0_8px_32px_rgba(0,0,0,0.3)]">
       {/* Felt texture overlay */}
       <div className="absolute inset-0 opacity-20 rounded-xl" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\'/%3E%3C/svg%3E")' }} />
       
@@ -710,12 +769,12 @@ export default function RoulettePage() {
   );
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-900 to-black pb-20">
+    <main className="min-h-screen bg-[radial-gradient(ellipse_at_top,#1a1a2e_0%,#0d0d0d_50%,#000000_100%)] pb-20">
       {/* Win animation overlay */}
       {showWinAnimation && (
         <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
           <div className="animate-ping absolute w-96 h-96 rounded-full bg-yellow-500/20" />
-          <div className="animate-pulse text-6xl font-bold text-yellow-400 drop-shadow-[0_0_30px_rgba(234,179,8,0.8)]">
+          <div className="animate-pulse text-7xl font-black text-yellow-400 drop-shadow-[0_0_40px_rgba(234,179,8,0.9)]">
             +{lastWin.toLocaleString()}
           </div>
         </div>
@@ -723,22 +782,22 @@ export default function RoulettePage() {
 
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <Link href="/">
-              <Button variant="ghost" size="icon" className="hover:bg-white/10">
+              <Button variant="ghost" size="icon" className="hover:bg-white/10 rounded-xl">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center shadow-lg shadow-green-500/30">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500 via-green-600 to-green-800 flex items-center justify-center shadow-lg shadow-green-500/25 border border-green-400/20">
                 <span className="text-2xl">🎰</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-black bg-gradient-to-r from-white via-gray-100 to-gray-400 bg-clip-text text-transparent tracking-tight">
                   European Roulette
                 </h1>
-                <p className="text-sm text-gray-400">Single Zero • 97.3% RTP</p>
+                <p className="text-sm text-gray-500 font-medium">Single Zero &bull; 97.3% RTP</p>
               </div>
             </div>
           </div>
@@ -748,14 +807,14 @@ export default function RoulettePage() {
               variant="ghost"
               size="icon"
               onClick={() => setSoundEnabled(!soundEnabled)}
-              className="hover:bg-white/10"
+              className="hover:bg-white/10 rounded-xl"
             >
               {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
             </Button>
-            <div className="px-4 py-2 rounded-xl bg-gradient-to-r from-yellow-600/20 to-yellow-500/20 border border-yellow-500/30">
+            <div className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-yellow-600/15 to-yellow-500/15 border border-yellow-500/25 shadow-lg shadow-yellow-500/5">
               <div className="flex items-center gap-2">
                 <Coins className="w-5 h-5 text-yellow-500" />
-                <span className="font-bold text-yellow-400">{balance.toLocaleString()}</span>
+                <span className="font-bold text-yellow-400 text-lg">{balance.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -763,51 +822,54 @@ export default function RoulettePage() {
 
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Left Panel - Wheel & Result */}
-          <div className="xl:col-span-1 space-y-4">
+          <div className="xl:col-span-1 space-y-5">
             {/* Roulette Wheel */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-6 border border-gray-700/50 backdrop-blur overflow-hidden">
-              <div className="flex items-center justify-center min-h-[480px]">
+            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-3xl p-6 border border-gray-700/40 backdrop-blur-sm shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-center min-h-[500px]">
                 <RouletteWheel />
               </div>
-              
+
               {/* Result Display */}
               <div className="mt-6 text-center">
                 {result !== null && !isSpinning && (
-                  <div className="space-y-2">
-                    <p className="text-gray-400 text-sm">Result</p>
-                    <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${getColorClass(result)} text-white text-2xl font-bold shadow-lg ${showWinAnimation ? 'animate-bounce' : ''}`}>
+                  <div className="space-y-3">
+                    <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest">Result</p>
+                    <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${getColorClass(result)} text-white text-3xl font-black shadow-xl ${showWinAnimation ? 'animate-bounce' : ''} ring-4 ring-white/10`}>
                       {result}
                     </div>
                     {lastWin > 0 && (
-                      <p className="text-green-400 font-bold text-lg">+{lastWin.toLocaleString()}</p>
+                      <p className="text-green-400 font-black text-xl drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]">+{lastWin.toLocaleString()}</p>
                     )}
                   </div>
                 )}
                 {isSpinning && (
-                  <p className="text-yellow-400 animate-pulse text-lg font-medium">Spinning...</p>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-500/10 border border-yellow-500/20">
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                    <p className="text-yellow-400 text-sm font-semibold">Ball in play...</p>
+                  </div>
                 )}
                 {result === null && !isSpinning && (
-                  <p className="text-gray-500">Place your bets</p>
+                  <p className="text-gray-600 text-sm">Place your bets</p>
                 )}
               </div>
             </div>
 
             {/* Spin History */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-4 border border-gray-700/50 backdrop-blur">
+            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-2xl p-4 border border-gray-700/40 backdrop-blur-sm">
               <div className="flex items-center gap-2 mb-3">
-                <History className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-300">History</span>
+                <History className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">History</span>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5">
                 {spinHistory.length === 0 ? (
-                  <p className="text-xs text-gray-500">No spins yet</p>
+                  <p className="text-xs text-gray-600">No spins yet</p>
                 ) : (
                   spinHistory.map((item, i) => (
                     <div
                       key={i}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                        item.color === "green" ? "bg-green-600" : item.color === "red" ? "bg-red-600" : "bg-gray-800"
-                      } ${i === 0 ? 'ring-2 ring-yellow-400' : ''}`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white transition-all ${
+                        item.color === "green" ? "bg-green-700" : item.color === "red" ? "bg-red-700" : "bg-gray-800"
+                      } ${i === 0 ? 'ring-2 ring-yellow-400 scale-110' : 'opacity-80'}`}
                     >
                       {item.number}
                     </div>
@@ -817,44 +879,44 @@ export default function RoulettePage() {
             </div>
 
             {/* Statistics */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-4 border border-gray-700/50 backdrop-blur">
+            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-2xl p-4 border border-gray-700/40 backdrop-blur-sm">
               <div className="flex items-center gap-2 mb-3">
-                <TrendingUp className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-300">Statistics</span>
+                <TrendingUp className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Statistics</span>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-red-600/20 rounded-lg p-2">
-                  <p className="text-red-400 text-lg font-bold">
+                <div className="bg-red-600/15 rounded-xl p-3 border border-red-500/10">
+                  <p className="text-red-400 text-xl font-black">
                     {spinHistory.filter(h => h.color === "red").length}
                   </p>
-                  <p className="text-xs text-gray-400">Red</p>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase">Red</p>
                 </div>
-                <div className="bg-gray-600/20 rounded-lg p-2">
-                  <p className="text-gray-300 text-lg font-bold">
+                <div className="bg-gray-600/15 rounded-xl p-3 border border-gray-500/10">
+                  <p className="text-gray-300 text-xl font-black">
                     {spinHistory.filter(h => h.color === "black").length}
                   </p>
-                  <p className="text-xs text-gray-400">Black</p>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase">Black</p>
                 </div>
-                <div className="bg-green-600/20 rounded-lg p-2">
-                  <p className="text-green-400 text-lg font-bold">
+                <div className="bg-green-600/15 rounded-xl p-3 border border-green-500/10">
+                  <p className="text-green-400 text-xl font-black">
                     {spinHistory.filter(h => h.color === "green").length}
                   </p>
-                  <p className="text-xs text-gray-400">Zero</p>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase">Zero</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Main Panel - Betting Table */}
-          <div className="xl:col-span-3 space-y-4">
+          <div className="xl:col-span-3 space-y-5">
             <BettingTable />
 
             {/* Chip Selection & Controls */}
-            <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-4 border border-gray-700/50 backdrop-blur">
+            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-2xl p-5 border border-gray-700/40 backdrop-blur-sm">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 {/* Chip Selection */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400 mr-2">Chip:</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs text-gray-500 mr-1 font-semibold uppercase tracking-wider">Chip</span>
                   {CHIP_VALUES.map(value => (
                     <button
                       key={value}
@@ -863,19 +925,18 @@ export default function RoulettePage() {
                       className={`relative w-12 h-12 rounded-full transition-all duration-200 ${
                         selectedChip === value
                           ? 'scale-110 ring-2 ring-yellow-400 shadow-lg shadow-yellow-500/30'
-                          : 'hover:scale-105 opacity-70 hover:opacity-100'
+                          : 'hover:scale-105 opacity-60 hover:opacity-100'
                       } ${
-                        value === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-600' :
+                        value === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-500' :
                         value === 5 ? 'bg-gradient-to-br from-red-400 to-red-600' :
                         value === 10 ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
                         value === 25 ? 'bg-gradient-to-br from-green-400 to-green-600' :
                         value === 100 ? 'bg-gradient-to-br from-purple-400 to-purple-600' :
                         'bg-gradient-to-br from-yellow-400 to-yellow-600'
-                      } border-4 border-white/30 shadow-md flex items-center justify-center`}
+                      } border-[3px] border-white/25 shadow-md flex items-center justify-center`}
                     >
-                      <span className="text-white font-bold text-xs drop-shadow">{value}</span>
-                      {/* Chip edge pattern */}
-                      <div className="absolute inset-1 rounded-full border-2 border-dashed border-white/20" />
+                      <span className="text-white font-bold text-xs drop-shadow-md">{value}</span>
+                      <div className="absolute inset-[3px] rounded-full border-2 border-dashed border-white/15" />
                     </button>
                   ))}
                 </div>
@@ -883,46 +944,31 @@ export default function RoulettePage() {
                 {/* Current Bet Info */}
                 <div className="flex items-center gap-4">
                   {bets.length > 0 && (
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">Total Bet</p>
-                      <p className="text-lg font-bold text-white">{getTotalBet().toLocaleString()}</p>
+                    <div className="text-right px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                      <p className="text-[10px] text-gray-500 font-semibold uppercase">Total Bet</p>
+                      <p className="text-lg font-black text-white">{getTotalBet().toLocaleString()}</p>
                     </div>
                   )}
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={undoLastBet}
-                    disabled={isSpinning || bets.length === 0}
-                    className="border-gray-600 hover:bg-gray-700"
-                  >
+                  <Button variant="outline" size="sm" onClick={undoLastBet} disabled={isSpinning || bets.length === 0}
+                    className="border-gray-700 hover:bg-gray-800 rounded-xl text-xs font-semibold">
                     Undo
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={doubleBets}
-                    disabled={isSpinning || bets.length === 0}
-                    className="border-gray-600 hover:bg-gray-700"
-                  >
+                  <Button variant="outline" size="sm" onClick={doubleBets} disabled={isSpinning || bets.length === 0}
+                    className="border-gray-700 hover:bg-gray-800 rounded-xl text-xs font-semibold">
                     2x
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearBets}
-                    disabled={isSpinning}
-                    className="border-gray-600 hover:bg-gray-700"
-                  >
+                  <Button variant="outline" size="sm" onClick={clearBets} disabled={isSpinning}
+                    className="border-gray-700 hover:bg-gray-800 rounded-xl">
                     <RotateCcw className="w-4 h-4" />
                   </Button>
                   <Button
                     onClick={spin}
                     disabled={isSpinning || bets.length === 0}
-                    className="px-8 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 text-white font-bold shadow-lg shadow-green-500/30 disabled:opacity-50"
+                    className="px-10 py-5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-base shadow-xl shadow-green-500/25 disabled:opacity-50 rounded-xl tracking-wide"
                   >
                     {isSpinning ? (
                       <span className="flex items-center gap-2">
@@ -939,8 +985,8 @@ export default function RoulettePage() {
 
             {/* Current Bets Summary */}
             {bets.length > 0 && (
-              <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl p-4 border border-gray-700/50 backdrop-blur">
-                <p className="text-sm font-medium text-gray-300 mb-3">Current Bets ({bets.length})</p>
+              <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-2xl p-4 border border-gray-700/40 backdrop-blur-sm">
+                <p className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Active Bets ({bets.length})</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(
                     bets.reduce((acc, bet) => {
@@ -951,9 +997,9 @@ export default function RoulettePage() {
                   ).map(([key, amount]) => (
                     <div
                       key={key}
-                      className="px-3 py-1 rounded-full bg-white/10 text-sm flex items-center gap-2"
+                      className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm flex items-center gap-2"
                     >
-                      <span className="text-gray-300">{key.replace('-', ' #')}</span>
+                      <span className="text-gray-400">{key.replace('-', ' #')}</span>
                       <span className="text-yellow-400 font-bold">{amount}</span>
                     </div>
                   ))}

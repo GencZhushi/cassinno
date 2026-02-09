@@ -553,18 +553,18 @@ export default function BlackjackPage() {
           </div>
         </div>
 
-        {/* ── Chip Rack (top center) ── */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-[25%] z-10 hidden sm:flex">
-          <div className="flex gap-0.5 px-3 py-1 rounded-b-lg" style={{ background: 'linear-gradient(180deg, #5a3a1a, #8B5E3C, #6a4422)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-            {['#E53E3E','#3182CE','#38A169','#DD6B20','#1A202C','#805AD5','#D69E2E'].map((c, i) => (
-              <div key={i} className="w-2 h-6 sm:w-3 sm:h-8 rounded-b-sm" style={{ background: c, boxShadow: `inset 0 -2px 4px rgba(0,0,0,0.3)` }} />
+        {/* ── Chip Rack (top center-right) ── */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-[20%] z-10 hidden sm:flex">
+          <div className="flex gap-0.5 px-4 py-1.5 rounded-b-lg" style={{ background: 'linear-gradient(180deg, #5a3a1a, #8B5E3C, #6a4422)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+            {['#E53E3E','#3182CE','#38A169','#DD6B20','#1A202C','#805AD5','#D69E2E','#E53E3E'].map((c, i) => (
+              <div key={i} className="w-2.5 h-7 sm:w-3 sm:h-9 rounded-b-sm" style={{ background: c, boxShadow: 'inset 0 -2px 4px rgba(0,0,0,0.3)' }} />
             ))}
           </div>
         </div>
 
         {/* ── Card Shoe (top right) ── */}
         <div className="absolute top-2 right-3 sm:top-3 sm:right-4 z-10">
-          <div className="w-10 h-14 sm:w-14 sm:h-20 rounded-sm relative" 
+          <div className="w-12 h-16 sm:w-16 sm:h-[88px] rounded-sm relative" 
             style={{ 
               background: 'linear-gradient(135deg, #8B6914 0%, #A0792C 30%, #6B5210 70%, #8B6914 100%)',
               boxShadow: '2px 3px 8px rgba(0,0,0,0.5)',
@@ -572,7 +572,7 @@ export default function BlackjackPage() {
             }}>
             <div className="absolute inset-1 rounded-sm flex items-center justify-center"
               style={{ background: 'repeating-linear-gradient(45deg, #8B0000, #8B0000 2px, #A52A2A 2px, #A52A2A 4px)' }}>
-              <div className="w-5 h-7 sm:w-7 sm:h-10 border border-yellow-600/40 rounded-sm" style={{ background: '#B22222' }} />
+              <div className="w-6 h-9 sm:w-8 sm:h-12 border border-yellow-600/40 rounded-sm" style={{ background: '#B22222' }} />
             </div>
           </div>
         </div>
@@ -595,10 +595,10 @@ export default function BlackjackPage() {
             <div className="text-[10px] sm:text-xs text-green-400/20 font-bold tracking-[0.2em] uppercase">
               Blackjack Pays 3 to 2
             </div>
-            <div className="text-[9px] sm:text-[11px] text-green-400/18 tracking-[0.15em] uppercase">
+            <div className="text-[9px] sm:text-[11px] text-green-400/[0.18] tracking-[0.15em] uppercase">
               Dealer Must Stand on All 17
             </div>
-            <div className="text-[9px] sm:text-[11px] text-green-400/15 tracking-[0.12em] uppercase">
+            <div className="text-[9px] sm:text-[11px] text-green-400/[0.15] tracking-[0.12em] uppercase">
               Insurance Pays 2 to 1
             </div>
           </div>
@@ -783,7 +783,7 @@ export default function BlackjackPage() {
       <div className="relative" style={{ 
         background: 'linear-gradient(180deg, #6B3A1F 0%, #8B5E3C 15%, #A0704D 30%, #7a4a2a 60%, #5a3218 100%)',
         borderTop: '3px solid #3a2010',
-        minHeight: '120px',
+        minHeight: '130px',
       }}>
         {/* Wood grain texture */}
         <div className="absolute inset-0 pointer-events-none opacity-10"
@@ -793,9 +793,9 @@ export default function BlackjackPage() {
         />
 
         <div className="relative z-10 px-4 py-3">
-          {/* ── Chips Row ── */}
+          {/* ── Chips Row (horizontal) ── */}
           {(!gameState || gameState.status === "betting") && (
-            <div className="flex justify-center gap-2 sm:gap-3 mb-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-3">
               {CHIP_VALUES.map((value) => (
                 <Chip
                   key={value}

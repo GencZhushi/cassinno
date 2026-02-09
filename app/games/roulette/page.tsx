@@ -36,7 +36,7 @@ export default function RoulettePage() {
   const [lastWin, setLastWin] = useState<number>(0);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [ballAngle, setBallAngle] = useState(0);
-  const [ballRadius, setBallRadius] = useState(176);
+  const [ballRadius, setBallRadius] = useState(132);
   const [spinHistory, setSpinHistory] = useState<SpinHistoryItem[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWinAnimation, setShowWinAnimation] = useState(false);
@@ -135,10 +135,10 @@ export default function RoulettePage() {
     const DEGREES_PER_SLOT = 360 / 37;
     const pocketCenterOffset = DEGREES_PER_SLOT / 2;
 
-    // Physical dimensions (relative to 460px container)
-    const TRACK_RADIUS = 176;
-    const DEFLECTOR_RADIUS = 152;
-    const POCKET_RADIUS = 110;
+    // Physical dimensions (relative to 360px container)
+    const TRACK_RADIUS = 132;
+    const DEFLECTOR_RADIUS = 114;
+    const POCKET_RADIUS = 83;
 
     // Ball state – counter-clockwise spin (opposite to wheel, like real roulette)
     let angle = Math.random() * 360;
@@ -392,17 +392,17 @@ export default function RoulettePage() {
     const speedNorm = Math.min(ballSpeed / 500, 1);
 
     // Ball size varies by phase (3D depth illusion)
-    const bSize = ballPhase === 'spinning' ? 18 : ballPhase === 'dropping' ? 17 : ballPhase === 'bouncing' ? 16 : ballPhase === 'settled' ? 15 : 18;
+    const bSize = ballPhase === 'spinning' ? 14 : ballPhase === 'dropping' ? 13 : ballPhase === 'bouncing' ? 13 : ballPhase === 'settled' ? 12 : 14;
 
     return (
-      <div className="relative w-[480px] h-[480px] mx-auto select-none" style={{ aspectRatio: '1 / 1' }}>
+      <div className="relative w-[360px] h-[360px] mx-auto select-none" style={{ aspectRatio: '1 / 1' }}>
         {/* Ambient glow underneath wheel */}
         <div className="absolute inset-8 rounded-full opacity-40 blur-3xl"
           style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.35) 0%, transparent 70%)' }} />
 
         {/* Outer chrome/gold ring – conic gradient for metallic look */}
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] h-[440px] rounded-full p-[5px] shadow-[0_0_50px_rgba(212,175,55,0.35),0_0_100px_rgba(212,175,55,0.12)]"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[340px] rounded-full p-[4px] shadow-[0_0_50px_rgba(212,175,55,0.35),0_0_100px_rgba(212,175,55,0.12)]"
           style={{ background: 'conic-gradient(from 0deg, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914, #D4AF37, #F5E6A3, #D4AF37, #8B6914)' }}
         >
           {/* Inner chrome ring */}
@@ -422,8 +422,8 @@ export default function RoulettePage() {
               {/* Deflectors/diamonds on the track */}
               {[...Array(8)].map((_, i) => {
                 const ang = (i * 45 * Math.PI) / 180;
-                const dx = Math.sin(ang) * 168;
-                const dy = -Math.cos(ang) * 168;
+                const dx = Math.sin(ang) * 126;
+                const dy = -Math.cos(ang) * 126;
                 return (
                   <div key={`deflector-${i}`} className="absolute z-[5]"
                     style={{ left: `calc(50% + ${dx}px - 7px)`, top: `calc(50% + ${dy}px - 9px)`, transform: `rotate(${i * 45}deg)` }}>
@@ -620,8 +620,8 @@ export default function RoulettePage() {
         {/* Decorative outer studs */}
         {[...Array(36)].map((_, i) => {
           const ang = (i * 10 * Math.PI) / 180;
-          const sx = Math.sin(ang) * 228;
-          const sy = -Math.cos(ang) * 228;
+          const sx = Math.sin(ang) * 170;
+          const sy = -Math.cos(ang) * 170;
           return (
             <div key={`stud-${i}`} className="absolute w-[5px] h-[5px] rounded-full"
               style={{
@@ -820,12 +820,12 @@ export default function RoulettePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
           {/* Left Panel - Wheel & Result */}
-          <div className="xl:col-span-1 space-y-5">
+          <div className="xl:col-span-2 space-y-5">
             {/* Roulette Wheel */}
-            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-3xl p-6 border border-gray-700/40 backdrop-blur-sm shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-center min-h-[500px]">
+            <div className="bg-gradient-to-br from-gray-800/40 to-gray-900/60 rounded-3xl p-6 border border-gray-700/40 backdrop-blur-sm shadow-2xl">
+              <div className="flex items-center justify-center min-h-[400px]">
                 <RouletteWheel />
               </div>
 

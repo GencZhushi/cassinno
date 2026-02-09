@@ -118,13 +118,13 @@ export default function SweetBonanzaPage() {
 
       // Phase 2: explode winning symbols
       setTumblePhase("exploding");
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Phase 3: fill with new symbols cascading down
       setWinningPositions([]);
       setGrid(tumble.grid);
       setTumblePhase("filling");
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 700));
 
       setTumblePhase("idle");
     }
@@ -190,7 +190,7 @@ export default function SweetBonanzaPage() {
       // Phase 3: Land final symbols with bounce (drop in from top)
       setGrid(data.grid);
       setSpinPhase("landing");
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await new Promise(resolve => setTimeout(resolve, 800));
       setSpinPhase("idle");
 
       if (isFreeSpin) {
@@ -406,8 +406,8 @@ export default function SweetBonanzaPage() {
                           cellAnimClass = "sb-tumble-explode";
                           cellDelay = `${Math.random() * 100}ms`;
                         } else if (isFilling) {
-                          cellAnimClass = "sb-drop-in";
-                          cellDelay = `${landDelay}ms`;
+                          cellAnimClass = "sb-tumble-fill";
+                          cellDelay = `${colIndex * 40 + rowIndex * 55}ms`;
                         } else if (isWinning) {
                           cellAnimClass = "sb-winning-container z-10";
                         }
@@ -619,11 +619,12 @@ export default function SweetBonanzaPage() {
         /* === SPIN PHASE: Drop Out (symbols fall down smoothly) === */
         @keyframes sb-drop-out-kf {
           0% { transform: translateY(0) scale(1); opacity: 1; }
-          60% { transform: translateY(120%) scale(0.9); opacity: 0.5; }
-          100% { transform: translateY(200%) scale(0.7); opacity: 0; }
+          40% { transform: translateY(60%) scale(0.95); opacity: 0.7; }
+          70% { transform: translateY(140%) scale(0.88); opacity: 0.35; }
+          100% { transform: translateY(220%) scale(0.8); opacity: 0; }
         }
         .sb-drop-out {
-          animation: sb-drop-out-kf 0.3s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+          animation: sb-drop-out-kf 0.45s cubic-bezier(0.4, 0, 1, 0.4) forwards;
         }
 
         /* === SPIN PHASE: Cascading (rapid symbol cycling during spin) === */
@@ -639,25 +640,42 @@ export default function SweetBonanzaPage() {
 
         /* === SPIN PHASE: Landing (symbols drop in from top with bounce) === */
         @keyframes sb-drop-in-kf {
-          0% { transform: translateY(-180%) scale(0.8); opacity: 0; }
-          40% { transform: translateY(8%) scale(1.02); opacity: 1; }
-          60% { transform: translateY(-4%); }
-          75% { transform: translateY(2%); }
+          0% { transform: translateY(-200%) scale(0.85); opacity: 0; }
+          25% { transform: translateY(-40%) scale(0.95); opacity: 0.8; }
+          50% { transform: translateY(6%) scale(1.02); opacity: 1; }
+          65% { transform: translateY(-3%) scale(1.01); }
+          78% { transform: translateY(1.5%) scale(1); }
+          88% { transform: translateY(-0.5%); }
           100% { transform: translateY(0) scale(1); opacity: 1; }
         }
         .sb-drop-in {
-          animation: sb-drop-in-kf 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+          animation: sb-drop-in-kf 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         /* === TUMBLE: Explode (winning symbols pop and vanish) === */
         @keyframes sb-tumble-explode-kf {
-          0% { transform: scale(1); opacity: 1; filter: brightness(1); }
-          30% { transform: scale(1.3); opacity: 1; filter: brightness(1.8) drop-shadow(0 0 15px rgba(255,105,180,1)); }
-          60% { transform: scale(1.4) rotate(10deg); opacity: 0.6; filter: brightness(2) drop-shadow(0 0 25px rgba(255,215,0,1)); }
-          100% { transform: scale(0) rotate(30deg); opacity: 0; filter: brightness(2); }
+          0% { transform: scale(1) rotate(0deg); opacity: 1; filter: brightness(1); }
+          20% { transform: scale(1.25); opacity: 1; filter: brightness(1.6) drop-shadow(0 0 10px rgba(255,105,180,0.8)); }
+          45% { transform: scale(1.35) rotate(6deg); opacity: 0.85; filter: brightness(1.9) drop-shadow(0 0 20px rgba(255,215,0,0.9)); }
+          70% { transform: scale(1.1) rotate(15deg); opacity: 0.4; filter: brightness(2) drop-shadow(0 0 25px rgba(255,215,0,1)); }
+          100% { transform: scale(0) rotate(25deg); opacity: 0; filter: brightness(2); }
         }
         .sb-tumble-explode {
-          animation: sb-tumble-explode-kf 0.4s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+          animation: sb-tumble-explode-kf 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* === TUMBLE: Fill (new symbols cascade down after tumble) === */
+        @keyframes sb-tumble-fill-kf {
+          0% { transform: translateY(-160%) scale(0.9); opacity: 0; }
+          20% { opacity: 0.6; }
+          55% { transform: translateY(5%) scale(1.01); opacity: 1; }
+          72% { transform: translateY(-2.5%) scale(1); }
+          85% { transform: translateY(1%); }
+          94% { transform: translateY(-0.3%); }
+          100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .sb-tumble-fill {
+          animation: sb-tumble-fill-kf 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         /* === WINNING: Symbol pop up === */

@@ -9,7 +9,7 @@ interface AnimatedGameCardProps {
   provider: string;
   isTop?: boolean;
   href: string;
-  theme: "zeus" | "pharaoh" | "lightning" | "lucky" | "roulette" | "cards" | "fortune" | "stars" | "candy" | "dice" | "plinko" | "mines" | "fish" | "wolf" | "explorer" | "wheel" | "poker";
+  theme: "zeus" | "pharaoh" | "lightning" | "lucky" | "roulette" | "cards" | "fortune" | "stars" | "candy" | "dice" | "plinko" | "mines" | "fish" | "wolf" | "explorer" | "wheel" | "poker" | "chicken";
   image?: string;
 }
 
@@ -98,6 +98,11 @@ const themeStyles: Record<string, { gradient: string; icon: string; accent: stri
     gradient: "from-red-700 via-red-600 to-rose-500",
     icon: "🃏",
     accent: "bg-red-400",
+  },
+  chicken: {
+    gradient: "from-yellow-500 via-orange-400 to-green-600",
+    icon: "🐔",
+    accent: "bg-yellow-300",
   },
 };
 

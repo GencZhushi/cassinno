@@ -13,6 +13,7 @@ export * as bigBassBonanza from "./big-bass-bonanza";
 export * as wolfGold from "./wolf-gold";
 export * as starburst from "./starburst";
 export * as gonzosQuestMegaways from "./gonzos-quest-megaways";
+export * as chickenRoad from "./chicken-road";
 
 export const GAME_INFO = {
   ROULETTE: {
@@ -134,6 +135,14 @@ export const GAME_INFO = {
     minBet: 1,
     maxBet: 500,
     category: "slots",
+  },
+  CHICKEN_ROAD: {
+    name: "Chicken Road",
+    description: "Guide the chicken across the road, avoid bones & cash out multipliers",
+    rtp: 0.98,
+    minBet: 10,
+    maxBet: 5000,
+    category: "instant",
   },
 } as const;
 

@@ -24,6 +24,7 @@ export const translations = {
     lightningDice: "Lightning Dice",
     plinko: "Plinko",
     mines: "Mines",
+    chickenRoad: "Chicken Road",
     
     // Footer
     footerText: "Play-money only. No real gambling. For entertainment purposes only.",
@@ -59,6 +60,7 @@ export const translations = {
     lightningDice: "Lightning Dice",
     plinko: "Plinko",
     mines: "Mines",
+    chickenRoad: "Chicken Road",
     
     // Footer
     footerText: "Jeu fictif uniquement. Pas de vrai jeu d'argent. À des fins de divertissement uniquement.",

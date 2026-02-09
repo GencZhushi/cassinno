@@ -7,7 +7,7 @@ import { AnimatedGameCard } from "@/components/AnimatedGameCard";
 import { FloatingButtons } from "@/components/FloatingButtons";
 import { useLanguage } from "@/lib/LanguageContext";
 
-type GameTheme = "zeus" | "pharaoh" | "lightning" | "lucky" | "roulette" | "cards" | "fortune" | "stars" | "candy" | "dice" | "plinko" | "mines" | "fish" | "wolf" | "explorer" | "wheel" | "poker";
+type GameTheme = "zeus" | "pharaoh" | "lightning" | "lucky" | "roulette" | "cards" | "fortune" | "stars" | "candy" | "dice" | "plinko" | "mines" | "fish" | "wolf" | "explorer" | "wheel" | "poker" | "chicken";
 
 const casinoGames: Array<{
   id: string;
@@ -22,7 +22,7 @@ const casinoGames: Array<{
   { id: "gates-of-olympus", nameKey: "gatesOfOlympus", provider: "Pragmatic Play", isTop: true, href: "/games/gates-of-olympus", theme: "zeus", image: "/games/gates-of-olympus.png", category: "slots" },
   { id: "book-of-dead", nameKey: "bookOfDead", provider: "Play'n GO", isTop: true, href: "/games/book-of-dead", theme: "pharaoh", category: "slots" },
   { id: "coin-strike", nameKey: "coinStrike", provider: "Playson", isTop: true, href: "/games/coin-strike", theme: "lightning", image: "/games/coin-strike.png", category: "slots" },
-  { id: "sweet-bonanza", nameKey: "sweetBonanza", provider: "Pragmatic Play", isTop: true, href: "/games/sweet-bonanza", theme: "candy", category: "slots" },
+  { id: "sweet-bonanza", nameKey: "sweetBonanza", provider: "Pragmatic Play", isTop: true, href: "/games/sweet-bonanza", theme: "candy", image: "/games/sweet-bonanza.png", category: "slots" },
   { id: "roulette", nameKey: "roulette", provider: "Evolution", isTop: true, href: "/games/roulette", theme: "roulette", category: "table" },
   { id: "blackjack", nameKey: "blackjack", provider: "Evolution", isTop: true, href: "/games/blackjack", theme: "cards", category: "table" },
   { id: "starburst", nameKey: "starburst", provider: "NetEnt", isTop: true, href: "/games/starburst", theme: "stars", category: "slots" },
@@ -35,6 +35,7 @@ const casinoGames: Array<{
   { id: "mines", nameKey: "mines", provider: "Spribe", isTop: false, href: "/games/mines", theme: "mines", category: "instant" },
   { id: "wheel", nameKey: "wheel", provider: "Evolution", isTop: false, href: "/games/wheel", theme: "wheel", category: "instant" },
   { id: "video-poker", nameKey: "videoPoker", provider: "Classic", isTop: false, href: "/games/video-poker", theme: "poker", category: "table" },
+  { id: "chicken-road", nameKey: "chickenRoad", provider: "InOut Games", isTop: true, href: "/games/chicken-road", theme: "chicken", category: "instant" },
 ];
 
 export default function HomePage() {
@@ -43,7 +44,7 @@ export default function HomePage() {
 
   const filteredGames = casinoGames.filter((game) => {
     if (activeTab === "slots") return true;
-    if (activeTab === "new") return ["sweet-bonanza", "plinko", "mines", "dice", "gonzos-quest-megaways"].includes(game.id);
+    if (activeTab === "new") return ["sweet-bonanza", "plinko", "mines", "dice", "gonzos-quest-megaways", "chicken-road"].includes(game.id);
     if (activeTab === "live") return game.category === "table";
     return true;
   });

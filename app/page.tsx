@@ -24,7 +24,7 @@ const casinoGames: Array<{
   { id: "coin-strike", nameKey: "coinStrike", provider: "Playson", isTop: true, href: "/games/coin-strike", theme: "lightning", image: "/games/coin-strike.png", category: "slots" },
   { id: "sweet-bonanza", nameKey: "sweetBonanza", provider: "Pragmatic Play", isTop: true, href: "/games/sweet-bonanza", theme: "candy", image: "/games/sweet-bonanza.png", category: "slots" },
   { id: "roulette", nameKey: "roulette", provider: "Evolution", isTop: true, href: "/games/roulette", theme: "roulette", image: "/games/roulette.png", category: "table" },
-  { id: "blackjack", nameKey: "blackjack", provider: "Evolution", isTop: true, href: "/games/blackjack", theme: "cards", category: "table" },
+  { id: "blackjack", nameKey: "blackjack", provider: "Games Global", isTop: true, href: "/games/blackjack", theme: "cards", image: "/games/blackjack.png", category: "table" },
   { id: "starburst", nameKey: "starburst", provider: "NetEnt", isTop: true, href: "/games/starburst", theme: "stars", category: "slots" },
   { id: "big-bass-bonanza", nameKey: "bigBassBonanza", provider: "Pragmatic Play", isTop: true, href: "/games/big-bass-bonanza", theme: "fish", category: "slots" },
   { id: "wolf-gold", nameKey: "wolfGold", provider: "Pragmatic Play", isTop: true, href: "/games/wolf-gold", theme: "wolf", category: "slots" },

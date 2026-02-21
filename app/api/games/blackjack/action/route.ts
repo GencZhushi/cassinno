@@ -65,6 +65,8 @@ function formatHandForClient(hand: HandState) {
     isSoft,
     isBlackjack: hand.isBlackjack,
     isBusted: hand.isBusted,
+    isDoubled: hand.isDoubled,
+    isSplit: hand.isSplit,
     bet: hand.bet,
   };
 }
@@ -217,7 +219,7 @@ export async function POST(request: NextRequest) {
         bet: currentHand.bet,
         isDoubled: false,
         isSplit: true,
-        isStanding: false,
+        isStanding: card1.rank === "A", // Split Aces stand immediately
         isBusted: false,
         isBlackjack: false,
       };
@@ -227,7 +229,7 @@ export async function POST(request: NextRequest) {
         bet: currentHand.bet,
         isDoubled: false,
         isSplit: true,
-        isStanding: false,
+        isStanding: card2.rank === "A", // Split Aces stand immediately
         isBusted: false,
         isBlackjack: false,
       };
@@ -344,6 +346,9 @@ export async function POST(request: NextRequest) {
 
     const newBalance = await getBalance(session.userId);
     const activeHand = playerHands[Math.min(currentHandIndex, playerHands.length - 1)];
+    const activeHandValueData = calculateHandValue(activeHand.cards);
+    const activeHandValue = activeHandValueData.value;
+    const canDouble = status === "playing" && activeHand.cards.length === 2 && !activeHand.isDoubled && !activeHand.isSplit && !activeHandValueData.isSoft && (activeHandValue >= 9 && activeHandValue <= 11);
 
     return NextResponse.json({
       gameState: {
@@ -357,7 +362,7 @@ export async function POST(request: NextRequest) {
         results,
         canHit: status === "playing" && !activeHand.isBusted && !activeHand.isStanding,
         canStand: status === "playing" && !activeHand.isBusted && !activeHand.isStanding,
-        canDouble: status === "playing" && activeHand.cards.length === 2 && !activeHand.isDoubled && !activeHand.isSplit,
+        canDouble,
         canSplit: status === "playing" && canSplitHand(activeHand),
         canInsurance: status === "playing" && dealerHand[0].rank === "A" && !insuranceTaken,
         insuranceTaken,

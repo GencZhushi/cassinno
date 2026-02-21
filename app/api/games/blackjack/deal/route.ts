@@ -88,6 +88,8 @@ function formatHandForClient(hand: HandState) {
     isSoft,
     isBlackjack: hand.isBlackjack,
     isBusted: hand.isBusted,
+    isDoubled: hand.isDoubled,
+    isSplit: hand.isSplit,
     bet: hand.bet,
   };
 }
@@ -112,8 +114,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: betResult.error }, { status: 400 });
     }
 
-    // Create 6-deck shoe
-    const deck = createShoe(6);
+    // Create 1-deck shoe for Classic Blackjack
+    const deck = createShoe(1);
     
     // Deal cards
     const playerCards = [deck.pop()!, deck.pop()!];
@@ -182,6 +184,10 @@ export async function POST(request: NextRequest) {
 
     const newBalance = await getBalance(session.userId);
 
+    const playerValueData = calculateHandValue(playerCards);
+    const playerValue = playerValueData.value;
+    const canDouble = status === "playing" && playerCards.length === 2 && !playerValueData.isSoft && (playerValue >= 9 && playerValue <= 11);
+
     return NextResponse.json({
       sessionId: gameSession.id,
       gameState: {
@@ -195,7 +201,7 @@ export async function POST(request: NextRequest) {
         results: status === "finished" ? [{ result: result || "lose", payout: totalPayout }] : undefined,
         canHit: status === "playing",
         canStand: status === "playing",
-        canDouble: status === "playing" && playerCards.length === 2,
+        canDouble,
         canSplit: status === "playing" && canSplit(playerHand),
         canInsurance,
         insuranceTaken: false,

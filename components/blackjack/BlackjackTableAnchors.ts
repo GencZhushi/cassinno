@@ -12,7 +12,7 @@ export const BLACKJACK_ANCHORS: AnchorZone[] = [
   { id: "deckShoe",    label: "Deck Shoe",        x: 83.8,  y: 2.4,   w: 15.7,  h: 16.5 },
 
   /* ── Dealer ── */
-  { id: "dealerCards", label: "Dealer Cards",      x: 34.8,  y: 14.9,  w: 34.2,  h: 17.2 },
+  { id: "dealerCards", label: "Dealer Cards",      x: 30.0,  y: 12.0,  w: 40.0,  h: 22.0 },
 
   /* ── Player betting spots (5 rectangles from the felt) ── */
   { id: "spotLeftUp",  label: "Left Upper Spot",   x: 2.9,   y: 34.1,  w: 12.5,  h: 12.5 },

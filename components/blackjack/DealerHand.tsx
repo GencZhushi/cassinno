@@ -69,7 +69,7 @@ export default function DealerHand({
       </div>
 
       {/* Dealer cards */}
-      <div className="flex justify-center gap-1 sm:gap-1.5 min-h-[62px] sm:min-h-[76px] items-center">
+      <div className="flex justify-center gap-1 sm:gap-1.5 min-h-[74px] sm:min-h-[96px] items-center">
         {cards.map((card, i) => (
           <BlackjackCard
             key={i}
@@ -78,7 +78,7 @@ export default function DealerHand({
             isNew={i === visibleCards - 1 && (isDealing || i >= 2)}
             hidden={i === 1 && dealerHidden && !isRevealing}
             isRevealing={i === 1 && isRevealing}
-            size="sm"
+            size="md"
           />
         ))}
       </div>

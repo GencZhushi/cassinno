@@ -88,7 +88,7 @@ export default function BettingSpot({
 
       {/* Player cards above the betting spot */}
       {hasHand && (
-        <div className="absolute -top-[80%] sm:-top-[90%] left-1/2 -translate-x-1/2 flex gap-0.5 z-[20]">
+        <div className="absolute -top-[110%] sm:-top-[130%] left-1/2 -translate-x-1/2 flex gap-0.5 z-[20]">
           {hand.cards.map((card, i) => (
             <BlackjackCard
               key={i}
@@ -96,7 +96,7 @@ export default function BettingSpot({
               visible={i < visibleCards}
               isNew={i === visibleCards - 1}
               isWinning={showResult === "win" || showResult === "blackjack"}
-              size="sm"
+              size="md"
             />
           ))}
         </div>
@@ -104,7 +104,7 @@ export default function BettingSpot({
 
       {/* Hand value badge */}
       {hasHand && visibleCards >= 2 && (
-        <div className="absolute -top-[105%] sm:-top-[115%] left-1/2 -translate-x-1/2 z-[25]">
+        <div className="absolute -top-[140%] sm:-top-[165%] left-1/2 -translate-x-1/2 z-[25]">
           <HandValueBadge
             value={hand.value}
             isSoft={hand.isSoft}
@@ -117,7 +117,7 @@ export default function BettingSpot({
       {/* Result indicator */}
       {showResult && (
         <div className={`
-          absolute -top-[130%] left-1/2 -translate-x-1/2 z-[30]
+          absolute -top-[170%] sm:-top-[195%] left-1/2 -translate-x-1/2 z-[30]
           px-2 py-0.5 rounded text-[8px] sm:text-[10px] font-bold uppercase tracking-wider
           bj-animate-bounce-in
           ${showResult === "win" || showResult === "blackjack"

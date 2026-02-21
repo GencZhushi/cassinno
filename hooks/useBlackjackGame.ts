@@ -21,14 +21,12 @@ interface HandData {
   bet: number;
 }
 
-interface GameState {
+/** Per-spot game data from the server */
+interface SpotGameData {
   playerHands: HandData[];
   currentHandIndex: number;
-  dealerHand: CardData[];
-  dealerValue: number;
-  dealerHidden: boolean;
-  status: "betting" | "playing" | "dealer_turn" | "finished";
-  result?: "win" | "lose" | "push" | "blackjack";
+  status: string;
+  result?: string;
   results?: Array<{ result: string; payout: number }>;
   canHit: boolean;
   canStand: boolean;
@@ -39,25 +37,36 @@ interface GameState {
   totalPayout: number;
 }
 
-/** Per-spot state for multi-hand play */
+/** Per-spot local UI state */
 interface SpotState {
-  sessionId: string | null;
-  gameState: GameState | null;
+  gameData: SpotGameData | null;
   visiblePlayerCards: number;
-  visibleDealerCards: number;
   showResult: boolean;
-  revealingDealer: boolean;
-  phase: "waiting" | "dealing" | "playing" | "dealer_turn" | "settled";
+  phase: "waiting" | "dealing" | "playing" | "done" | "settled";
+}
+
+/** Shared dealer state */
+interface DealerState {
+  cards: CardData[];
+  value: number;
+  hidden: boolean;
+  visibleCards: number;
+  revealing: boolean;
 }
 
 const emptySpotState = (): SpotState => ({
-  sessionId: null,
-  gameState: null,
+  gameData: null,
   visiblePlayerCards: 0,
-  visibleDealerCards: 0,
   showResult: false,
-  revealingDealer: false,
   phase: "waiting",
+});
+
+const emptyDealerState = (): DealerState => ({
+  cards: [],
+  value: 0,
+  hidden: true,
+  visibleCards: 0,
+  revealing: false,
 });
 
 type RoundPhase = "betting" | "dealing" | "playing" | "dealer_turn" | "settled";
@@ -67,6 +76,21 @@ const DEALER_DRAW_DELAY = 700;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const GUEST_BALANCE = 1000;
+const GUEST_MAX_GAMES = 3;
+const GUEST_GAMES_KEY = "blackjack_guest_games";
+
+function getGuestGamesPlayed(): number {
+  if (typeof window === "undefined") return 0;
+  return parseInt(localStorage.getItem(GUEST_GAMES_KEY) || "0", 10);
+}
+
+function incrementGuestGames(): number {
+  const count = getGuestGamesPlayed() + 1;
+  localStorage.setItem(GUEST_GAMES_KEY, count.toString());
+  return count;
+}
+
 export default function useBlackjackGame() {
   /* ── Core state ── */
   const [balance, setBalance] = useState(0);
@@ -75,12 +99,27 @@ export default function useBlackjackGame() {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [lastSpotBets, setLastSpotBets] = useState<Record<string, number>>({});
 
+  /* ── Guest mode ── */
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestBalance, setGuestBalance] = useState(GUEST_BALANCE);
+  const [guestGamesPlayed, setGuestGamesPlayed] = useState(0);
+  const guestLimitReached = isGuest && guestGamesPlayed >= GUEST_MAX_GAMES;
+
   /* ── Multi-spot bets: map of spotId → bet amount ── */
   const [spotBets, setSpotBets] = useState<Record<string, number>>({});
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
 
-  /* ── Per-spot game states ── */
+  /* ── Shared session ── */
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  /* ── Per-spot UI states ── */
   const [spotStates, setSpotStates] = useState<Record<string, SpotState>>({});
+
+  /* ── Shared dealer state ── */
+  const [dealerState, setDealerState] = useState<DealerState>(emptyDealerState());
+
+  /* ── Spot play order from server ── */
+  const [spotOrder, setSpotOrder] = useState<string[]>([]);
 
   /* ── Global round state ── */
   const [roundPhase, setRoundPhase] = useState<RoundPhase>("betting");
@@ -89,8 +128,11 @@ export default function useBlackjackGame() {
   const [actionsDisabled, setActionsDisabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [allSettled, setAllSettled] = useState(false);
+  const [totalPayout, setTotalPayout] = useState(0);
 
-  /* Ref to avoid stale closures in sequential play */
+  /* Refs to avoid stale closures */
+  const sessionRef = useRef(sessionId);
+  sessionRef.current = sessionId;
   const spotStatesRef = useRef(spotStates);
   spotStatesRef.current = spotStates;
 
@@ -99,12 +141,35 @@ export default function useBlackjackGame() {
     (id) => (spotBets[id] || 0) > 0
   );
 
-  /* ── Fetch balance on mount ── */
+  /* ── Detect auth status + fetch balance on mount ── */
   useEffect(() => {
-    fetchBalance();
+    checkAuthAndBalance();
+    setGuestGamesPlayed(getGuestGamesPlayed());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const checkAuthAndBalance = async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        setBalance(parseInt(data.balance));
+        setIsGuest(false);
+      } else {
+        setIsGuest(true);
+        setBalance(GUEST_BALANCE);
+      }
+    } catch {
+      setIsGuest(true);
+      setBalance(GUEST_BALANCE);
+    }
+  };
+
   const fetchBalance = async () => {
+    if (isGuest) {
+      setBalance(guestBalance);
+      return;
+    }
     try {
       const res = await fetch("/api/auth/me");
       if (res.ok) {
@@ -116,26 +181,25 @@ export default function useBlackjackGame() {
     }
   };
 
-  /* ── Current active spot's game state (for action bar / keyboard) ── */
-  const currentSpotState = activeSpot ? spotStates[activeSpot] : null;
-  const currentGameState = currentSpotState?.gameState ?? null;
+  /* ── Current active spot's game data (for action bar / keyboard) ── */
+  const currentSpotData = activeSpot ? spotStates[activeSpot]?.gameData ?? null : null;
 
   /* ── Keyboard shortcuts ── */
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!currentGameState || currentGameState.status !== "playing" || isLoading || actionsDisabled || isDealing) return;
+      if (!currentSpotData || currentSpotData.status !== "playing" || isLoading || actionsDisabled || isDealing) return;
       switch (e.key.toLowerCase()) {
         case "h": handleAction("hit"); break;
         case "s": handleAction("stand"); break;
-        case "d": if (currentGameState.canDouble) handleAction("double"); break;
-        case "p": if (currentGameState.canSplit) handleAction("split"); break;
-        case "i": if (currentGameState.canInsurance) handleAction("insurance"); break;
+        case "d": if (currentSpotData.canDouble) handleAction("double"); break;
+        case "p": if (currentSpotData.canSplit) handleAction("split"); break;
+        case "i": if (currentSpotData.canInsurance) handleAction("insurance"); break;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentGameState, isLoading, actionsDisabled, isDealing, activeSpot]);
+  }, [currentSpotData, isLoading, actionsDisabled, isDealing, activeSpot]);
 
   /* ── Place / adjust bet on a spot ── */
   const placeBetOnSpot = useCallback(
@@ -165,7 +229,7 @@ export default function useBlackjackGame() {
     setBetAmount(total);
   }, [lastSpotBets, balance]);
 
-  /* ── Helper: update a single spot's state ── */
+  /* ── Helper: update a single spot's UI state ── */
   const updateSpot = (spotId: string, patch: Partial<SpotState>) => {
     setSpotStates((prev) => ({
       ...prev,
@@ -173,47 +237,106 @@ export default function useBlackjackGame() {
     }));
   };
 
-  /* ── Animate initial deal for one spot ── */
-  const animateInitialDeal = async (spotId: string, data: GameState) => {
-    updateSpot(spotId, { phase: "dealing", visiblePlayerCards: 0, visibleDealerCards: 0, showResult: false });
+  /* ── Apply server response to local state ── */
+  const applyServerResponse = (data: {
+    sessionId: string;
+    dealerHand: CardData[];
+    dealerValue: number;
+    dealerHidden: boolean;
+    spots: Record<string, SpotGameData>;
+    spotOrder: string[];
+    currentSpotId: string | null;
+    overallStatus: string;
+    totalPayout: number;
+    newBalance: string;
+  }) => {
+    setSessionId(data.sessionId);
+    sessionRef.current = data.sessionId;
+
+    // Update balance
+    const newBal = parseInt(data.newBalance);
+    setBalance(newBal);
+    if (isGuest) setGuestBalance(newBal);
+
+    // Update dealer (cards and value, but NOT visibility — animations handle that)
+    setDealerState((prev) => ({
+      ...prev,
+      cards: data.dealerHand,
+      value: data.dealerValue,
+      hidden: data.dealerHidden,
+    }));
+
+    // Update per-spot game data (preserve local animation state)
+    setSpotStates((prev) => {
+      const next = { ...prev };
+      for (const sid of data.spotOrder) {
+        const existing = prev[sid] || emptySpotState();
+        next[sid] = { ...existing, gameData: data.spots[sid] };
+      }
+      return next;
+    });
+
+    setSpotOrder(data.spotOrder);
+    setActiveSpot(data.currentSpotId);
+
+    return data;
+  };
+
+  /* ── Animate initial deal for all spots at once ── */
+  const animateInitialDeal = async (spots: string[], dealerCards: CardData[]) => {
     setIsDealing(true);
 
+    // Deal first card to each spot
+    for (const sid of spots) {
+      updateSpot(sid, { phase: "dealing", visiblePlayerCards: 1 });
+      await sleep(CARD_DEAL_DELAY / 2);
+    }
+    await sleep(CARD_DEAL_DELAY / 2);
+
+    // Dealer first card
+    setDealerState((prev) => ({ ...prev, visibleCards: 1 }));
     await sleep(CARD_DEAL_DELAY);
-    updateSpot(spotId, { visiblePlayerCards: 1 });
-    await sleep(CARD_DEAL_DELAY);
-    updateSpot(spotId, { visibleDealerCards: 1 });
-    await sleep(CARD_DEAL_DELAY);
-    updateSpot(spotId, { visiblePlayerCards: 2 });
-    await sleep(CARD_DEAL_DELAY);
-    updateSpot(spotId, { visibleDealerCards: 2 });
+
+    // Deal second card to each spot
+    for (const sid of spots) {
+      updateSpot(sid, { visiblePlayerCards: 2 });
+      await sleep(CARD_DEAL_DELAY / 2);
+    }
+    await sleep(CARD_DEAL_DELAY / 2);
+
+    // Dealer second card
+    setDealerState((prev) => ({ ...prev, visibleCards: 2 }));
     await sleep(CARD_DEAL_DELAY);
 
     setIsDealing(false);
-
-    if (data.status === "finished") {
-      await animateDealerRevealAndResult(spotId, data);
-    } else {
-      updateSpot(spotId, { phase: "playing" });
-      setActionsDisabled(false);
-    }
   };
 
-  const animateDealerRevealAndResult = async (spotId: string, data: GameState) => {
+  /* ── Dealer reveal + draw animation ── */
+  const animateDealerReveal = async (dealerCards: CardData[]) => {
+    setRoundPhase("dealer_turn");
     setActionsDisabled(true);
-    updateSpot(spotId, { phase: "dealer_turn", revealingDealer: true });
-    await sleep(600);
-    updateSpot(spotId, { revealingDealer: false });
 
-    for (let i = 2; i < data.dealerHand.length; i++) {
+    // Flip hidden card
+    setDealerState((prev) => ({ ...prev, revealing: true, hidden: false }));
+    await sleep(600);
+    setDealerState((prev) => ({ ...prev, revealing: false }));
+
+    // Draw additional cards
+    for (let i = 2; i < dealerCards.length; i++) {
       await sleep(DEALER_DRAW_DELAY);
-      updateSpot(spotId, { visibleDealerCards: i + 1 });
+      setDealerState((prev) => ({ ...prev, visibleCards: i + 1 }));
     }
-
-    await sleep(600);
-    updateSpot(spotId, { showResult: true, phase: "settled" });
+    await sleep(400);
   };
 
-  /* ── Start game: deal each spot sequentially ── */
+  /* ── Show results for all spots ── */
+  const showAllResults = (spots: string[]) => {
+    for (const sid of spots) {
+      updateSpot(sid, { showResult: true, phase: "settled" });
+    }
+  };
+
+  /* ── Start game: ONE deal call for all spots ── */
   const startGame = async () => {
     const spots = BETTING_SPOT_IDS.filter((id) => (spotBets[id] || 0) > 0);
     if (spots.length === 0) { setError("Place a bet first"); return; }
@@ -225,7 +348,9 @@ export default function useBlackjackGame() {
     setLastSpotBets({ ...spotBets });
     setError(null);
     setAllSettled(false);
+    setTotalPayout(0);
     setRoundPhase("dealing");
+    setDealerState(emptyDealerState());
 
     // Initialize all spot states
     const init: Record<string, SpotState> = {};
@@ -233,106 +358,130 @@ export default function useBlackjackGame() {
     setSpotStates(init);
 
     try {
-      for (let idx = 0; idx < spots.length; idx++) {
-        const spotId = spots[idx];
-        const bet = spotBets[spotId];
-        setActiveSpot(spotId);
+      // Build spot bets map (only spots with bets)
+      const betsMap: Record<string, number> = {};
+      for (const sid of spots) betsMap[sid] = spotBets[sid];
 
-        // Deal for this spot
-        const res = await fetch("/api/games/blackjack/deal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount: bet }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+      const dealBody: Record<string, unknown> = { spots: betsMap };
+      if (isGuest) {
+        dealBody.guest = true;
+        dealBody.guestBalance = guestBalance;
+      }
 
-        setBalance(parseInt(data.newBalance));
-        updateSpot(spotId, {
-          sessionId: data.sessionId,
-          gameState: data.gameState,
-        });
+      const res = await fetch("/api/games/blackjack/deal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dealBody),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-        setRoundPhase("dealing");
-        setIsLoading(false);
-        await animateInitialDeal(spotId, data.gameState);
+      // Apply server state
+      const resp = applyServerResponse(data);
+      setIsLoading(false);
 
-        // If the hand needs player input, wait for it to finish
-        if (data.gameState.status === "playing") {
-          setRoundPhase("playing");
-          // Wait until this spot is settled before moving to next
-          await waitForSpotSettled(spotId);
+      // Animate dealing cards to all spots simultaneously
+      await animateInitialDeal(resp.spotOrder, resp.dealerHand);
+
+      // Check if game finished immediately (all blackjacks or dealer BJ)
+      if (resp.overallStatus === "finished") {
+        await animateDealerReveal(resp.dealerHand);
+        showAllResults(resp.spotOrder);
+        setTotalPayout(resp.totalPayout);
+        setAllSettled(true);
+        setRoundPhase("settled");
+        setActiveSpot(null);
+      } else {
+        // Set first active spot for play
+        setActiveSpot(resp.currentSpotId);
+        setRoundPhase("playing");
+        setActionsDisabled(false);
+
+        // Mark spots that are already done (BJ) as settled
+        for (const sid of resp.spotOrder) {
+          if (resp.spots[sid].status === "done") {
+            updateSpot(sid, { phase: "done" });
+          } else {
+            updateSpot(sid, { phase: "playing" });
+          }
         }
       }
 
-      // All spots done
-      setAllSettled(true);
-      setRoundPhase("settled");
-      setActiveSpot(null);
+      // Increment guest game counter
+      if (isGuest) {
+        const count = incrementGuestGames();
+        setGuestGamesPlayed(count);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start game");
       setIsLoading(false);
     }
   };
 
-  /* ── Wait for a spot to be settled (resolved via ref polling) ── */
-  const waitForSpotSettled = (spotId: string): Promise<void> => {
-    return new Promise((resolve) => {
-      const check = () => {
-        const st = spotStatesRef.current[spotId];
-        if (st && st.phase === "settled") {
-          resolve();
-        } else {
-          setTimeout(check, 200);
-        }
-      };
-      check();
-    });
-  };
-
   /* ── Player action on the currently active spot ── */
   const handleAction = async (action: "hit" | "stand" | "double" | "split" | "insurance") => {
-    if (!activeSpot || actionsDisabled) return;
+    if (!activeSpot || actionsDisabled || !sessionRef.current) return;
     const spot = spotStatesRef.current[activeSpot];
-    if (!spot?.sessionId) return;
+    if (!spot?.gameData) return;
 
     setActionsDisabled(true);
     setIsLoading(true);
     setError(null);
 
     try {
+      const prevSpotId = activeSpot;
+      const prevCount = spot.gameData.playerHands[spot.gameData.currentHandIndex]?.cards.length || 0;
+
+      const actionBody: Record<string, unknown> = { sessionId: sessionRef.current, action };
+      if (isGuest) actionBody.guestBalance = guestBalance;
+
       const res = await fetch("/api/games/blackjack/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: spot.sessionId, action }),
+        body: JSON.stringify(actionBody),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      const prevCount = spot.gameState?.playerHands[spot.gameState.currentHandIndex]?.cards.length || 0;
-      const newCount = data.gameState.playerHands[data.gameState.currentHandIndex]?.cards.length || 0;
-
-      updateSpot(activeSpot, { gameState: data.gameState });
-      setBalance(parseInt(data.newBalance));
+      // Apply server response
+      const resp = applyServerResponse(data);
       setIsLoading(false);
 
-      // Animate new card
+      const newSpotData = resp.spots[prevSpotId];
+      const newCount = newSpotData?.playerHands[newSpotData.currentHandIndex]?.cards.length || 0;
+
+      // Animate new card on the spot we just acted on
       if ((action === "hit" || action === "double") && newCount > prevCount) {
         await sleep(100);
-        updateSpot(activeSpot, { visiblePlayerCards: newCount });
+        updateSpot(prevSpotId, { visiblePlayerCards: newCount });
         await sleep(CARD_DEAL_DELAY);
       }
 
       if (action === "split") {
-        updateSpot(activeSpot, { visiblePlayerCards: 2 });
+        updateSpot(prevSpotId, { visiblePlayerCards: 2 });
         await sleep(CARD_DEAL_DELAY * 2);
       }
 
-      if (data.gameState.status === "finished") {
-        updateSpot(activeSpot, { visibleDealerCards: 2 });
-        await animateDealerRevealAndResult(activeSpot, data.gameState);
-        // phase is now "settled" → the waitForSpotSettled promise resolves
+      // Check if all spots finished
+      if (resp.overallStatus === "finished") {
+        // Dealer reveal + draw animation
+        await animateDealerReveal(resp.dealerHand);
+        showAllResults(resp.spotOrder);
+        setTotalPayout(resp.totalPayout);
+        setAllSettled(true);
+        setRoundPhase("settled");
+        setActiveSpot(null);
       } else {
+        // Update spot phases
+        for (const sid of resp.spotOrder) {
+          const sd = resp.spots[sid];
+          if (sd.status === "done" || sd.status === "finished") {
+            updateSpot(sid, { phase: "done" });
+          } else if (sid === resp.currentSpotId) {
+            updateSpot(sid, { phase: "playing" });
+          }
+        }
+        setActiveSpot(resp.currentSpotId);
         setActionsDisabled(false);
       }
     } catch (err) {
@@ -346,6 +495,9 @@ export default function useBlackjackGame() {
   const newGame = useCallback(() => {
     setSpotStates({});
     setActiveSpot(null);
+    setSessionId(null);
+    setDealerState(emptyDealerState());
+    setSpotOrder([]);
     setIsDealing(false);
     setActionsDisabled(false);
     setRoundPhase("betting");
@@ -353,18 +505,21 @@ export default function useBlackjackGame() {
     setBetAmount(0);
     setError(null);
     setAllSettled(false);
-    fetchBalance();
-  }, []);
-
-  /* ── Computed total payout across all spots ── */
-  const totalPayout = Object.values(spotStates).reduce((sum, s) => {
-    return sum + (s.gameState?.totalPayout || 0);
-  }, 0);
+    setTotalPayout(0);
+    if (isGuest) {
+      setBalance(guestBalance);
+    } else {
+      fetchBalance();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest, guestBalance]);
 
   /* ── Aggregate result for the overlay ── */
   const overallResult = (() => {
     if (!allSettled) return null;
-    const results = Object.values(spotStates).map((s) => s.gameState?.result).filter(Boolean);
+    const results = Object.values(spotStates)
+      .map((s) => s.gameData?.result)
+      .filter(Boolean);
     if (results.length === 0) return null;
     if (results.includes("blackjack")) return "blackjack";
     if (results.includes("win")) return "win";
@@ -390,11 +545,18 @@ export default function useBlackjackGame() {
     allSettled,
     totalPayout,
     overallResult,
+    isGuest,
+    guestGamesPlayed,
+    guestLimitReached,
+
+    /* Shared dealer */
+    dealerState,
 
     /* Per-spot states */
     spotStates,
-    currentGameState,
+    currentSpotData,
     activeSpotsOrdered,
+    spotOrder,
 
     /* Actions */
     setSelectedChip,
@@ -409,4 +571,4 @@ export default function useBlackjackGame() {
   };
 }
 
-export type { CardData, HandData, GameState, RoundPhase, SpotState };
+export type { CardData, HandData, SpotGameData, RoundPhase, SpotState, DealerState };

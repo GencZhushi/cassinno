@@ -46,10 +46,12 @@ export default function BlackjackPage() {
   const isPlaying = game.roundPhase === "playing" && !game.isDealing;
   const isFinished = game.roundPhase === "settled" && game.allSettled;
   const hasAnyBet = game.betAmount > 0;
+  const guestGamesLeft = 3 - game.guestGamesPlayed;
 
-  /* Active spot's state for dealer display + action bar */
-  const activeSpotState = game.activeSpot ? game.spotStates[game.activeSpot] : null;
-  const activeGameState = activeSpotState?.gameState ?? null;
+  /* Active spot's game data for action bar */
+  const activeSpotData = game.currentSpotData;
+  /* Shared dealer state */
+  const dealer = game.dealerState;
 
   return (
     <main className="min-h-screen flex flex-col bg-[#111]">
@@ -71,6 +73,11 @@ export default function BlackjackPage() {
           <span className="text-white font-semibold text-sm sm:text-base tracking-wide">
             Classic Blackjack Gold
           </span>
+          {game.isGuest && (
+            <span className="text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full bg-yellow-600/30 border border-yellow-500/40 text-yellow-300 font-bold uppercase tracking-wider">
+              Guest • {guestGamesLeft > 0 ? `${guestGamesLeft} free` : "0 left"}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -127,16 +134,16 @@ export default function BlackjackPage() {
                     </div>
                   </div>
 
-                  {/* ── Dealer hand (from currently active spot) ── */}
-                  {activeGameState && activeSpotState && (
+                  {/* ── Shared dealer hand (one for all spots) ── */}
+                  {dealer.cards.length > 0 && (
                     <DealerHand
-                      cards={activeGameState.dealerHand}
-                      dealerValue={activeGameState.dealerValue}
-                      dealerHidden={activeGameState.dealerHidden}
-                      visibleCards={activeSpotState.visibleDealerCards}
+                      cards={dealer.cards}
+                      dealerValue={dealer.value}
+                      dealerHidden={dealer.hidden}
+                      visibleCards={dealer.visibleCards}
                       isDealing={game.isDealing}
-                      isRevealing={activeSpotState.revealingDealer}
-                      isFinished={activeSpotState.phase === "settled"}
+                      isRevealing={dealer.revealing}
+                      isFinished={game.allSettled}
                       style={s("dealerCards")}
                     />
                   )}
@@ -145,14 +152,14 @@ export default function BlackjackPage() {
                   {BETTING_SPOT_IDS.map((spotId) => {
                     const anchor = a(spotId);
                     const ss = game.spotStates[spotId];
-                    const gs = ss?.gameState ?? null;
-                    const hand = gs
-                      ? gs.playerHands[gs.currentHandIndex]
+                    const gd = ss?.gameData ?? null;
+                    const hand = gd
+                      ? gd.playerHands[gd.currentHandIndex]
                       : null;
                     const bet = game.spotBets[spotId] || 0;
                     const spotResult =
-                      ss?.showResult && gs?.results?.[0]
-                        ? gs.results[0].result
+                      ss?.showResult && gd?.results?.[0]
+                        ? gd.results[0].result
                         : null;
 
                     return (
@@ -161,7 +168,7 @@ export default function BlackjackPage() {
                         id={spotId}
                         hand={hand}
                         betAmount={bet}
-                        isActive={spotId === game.activeSpot && gs?.status === "playing"}
+                        isActive={spotId === game.activeSpot && gd?.status === "playing"}
                         isMainSpot={spotId === "center"}
                         enabled={isBetting}
                         visibleCards={ss?.visiblePlayerCards ?? 0}
@@ -174,14 +181,14 @@ export default function BlackjackPage() {
                   })}
 
                   {/* ── Action bar (Hit/Stand/Double/Split during play) ── */}
-                  {activeGameState && activeGameState.status === "playing" && !game.isDealing && (
+                  {activeSpotData && activeSpotData.status === "playing" && !game.isDealing && (
                     <ActionBar
-                      canHit={activeGameState.canHit}
-                      canStand={activeGameState.canStand}
-                      canDouble={activeGameState.canDouble}
-                      canSplit={activeGameState.canSplit}
-                      canInsurance={activeGameState.canInsurance}
-                      insuranceTaken={activeGameState.insuranceTaken}
+                      canHit={activeSpotData.canHit}
+                      canStand={activeSpotData.canStand}
+                      canDouble={activeSpotData.canDouble}
+                      canSplit={activeSpotData.canSplit}
+                      canInsurance={activeSpotData.canInsurance}
+                      insuranceTaken={activeSpotData.insuranceTaken}
                       disabled={game.actionsDisabled}
                       onAction={game.handleAction}
                       style={s("actionBar")}
@@ -250,6 +257,7 @@ export default function BlackjackPage() {
                           }
                           disabled={
                             game.isLoading ||
+                            game.guestLimitReached ||
                             (!isFinished && (!hasAnyBet || game.betAmount > game.balance))
                           }
                           className="
@@ -291,6 +299,33 @@ export default function BlackjackPage() {
                         onNewGame={game.newGame}
                       />
                     )}
+
+                  {/* ── Guest limit reached overlay ── */}
+                  {game.guestLimitReached && isBetting && (
+                    <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm rounded-xl">
+                      <div className="text-center p-6 max-w-xs">
+                        <div className="text-4xl mb-3">🎰</div>
+                        <h3 className="text-white font-bold text-lg mb-2">
+                          Free Games Used Up!
+                        </h3>
+                        <p className="text-gray-300 text-sm mb-4">
+                          You&apos;ve played your 3 free guest games. Sign up or log in to keep playing with real tokens!
+                        </p>
+                        <div className="flex gap-2 justify-center">
+                          <Link href="/auth/register">
+                            <Button className="bg-gradient-to-b from-yellow-500 to-yellow-700 hover:from-yellow-400 hover:to-yellow-600 text-white font-bold px-5 py-2 rounded-full border-2 border-yellow-400/50">
+                              Sign Up
+                            </Button>
+                          </Link>
+                          <Link href="/auth/login">
+                            <Button variant="outline" className="border-gray-500 text-gray-200 hover:bg-white/10 px-5 py-2 rounded-full">
+                              Log In
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               );
             }}
